@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>FRC – Field-Reversed Configuration</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@600;700&display=swap');
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: #05050f;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Share Tech Mono', monospace;
+    overflow: hidden;
+  }
+
+  h1 {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: clamp(1.2rem, 4vw, 2rem);
+    letter-spacing: 0.25em;
+    color: #ff6a00;
+    text-shadow: 0 0 20px #ff6a00cc, 0 0 60px #ff6a0066;
+    margin-bottom: 4px;
+  }
+
+  .subtitle {
+    font-size: 0.7rem;
+    color: #ff6a0077;
+    letter-spacing: 0.2em;
+    margin-bottom: 18px;
+  }
+
+  canvas {
+    border: 1px solid #ff6a0033;
+    box-shadow: 0 0 50px #ff6a0018;
+  }
+
+  .legend {
+    display: flex;
+    gap: 28px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .leg {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.66rem;
+    letter-spacing: 0.1em;
+    color: #aaa;
+  }
+
+  .swatch {
+    width: 22px; height: 3px;
+    border-radius: 2px;
+  }
+
+  .phase-row {
+    margin-top: 12px;
+    font-size: 0.7rem;
+    color: #ff6a0099;
+    letter-spacing: 0.15em;
+  }
+  .phase-row span { color: #fff; }
+</style>
+</head>
+<body>
+
+<h1>FRC — Field-Reversed Configuration</h1>
+<div class="subtitle">磁場反転配位 核融合シミュレーション</div>
+
+<canvas id="c" width="580" height="420"></canvas>
+
+<div class="legend">
+  <div class="leg"><div class="swatch" style="background:#4af"></div>外部磁場 (→)</div>
+  <div class="leg"><div class="swatch" style="background:#f44"></div>内部磁場 (←) 反転</div>
+  <div class="leg"><div class="swatch" style="background:#ff6a00"></div>プラズマ (FRCコア)</div>
+  <div class="leg"><div class="swatch" style="background:#aaffaa"></div>分離面 (separatrix)</div>
+</div>
+<div class="phase-row">状態: <span id="phase">—</span></div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const CX = W / 2, CY = H / 2;
+
+let t = 0;
+
+/* ── geometry ── */
+// FRC cross-section: the separatrix is roughly an elongated ellipse
+// rs(z) = rs0 * sqrt(1 - (z/zs)^2)  for |z|<zs
+
+const ZS = 150;   // half-length of FRC (pixels)
+const RS0 = 90;   // max radius of separatrix
+const RWALL = 160; // conducting wall radius
+
+/* ── particles ── */
+const NP = 220;
+const parts = [];
+for (let i = 0; i < NP; i++) {
+  // Place inside separatrix
+  const zf = (Math.random() * 2 - 1) * 0.92;
+  const rf = Math.sqrt(Math.random()) * 0.88;
+  const rs = RS0 * Math.sqrt(1 - zf * zf);
+  const r = rf * rs;
+  const ang = Math.random() * Math.PI * 2;
+  parts.push({
+    z: zf * ZS,
+    r,
+    ang,
+    vz: (Math.random() - 0.5) * 0.4,
+    vAng: 0.015 + Math.random() * 0.02, // diamagnetic drift
+    size: 1.2 + Math.random() * 2.2,
+    hue: 20 + Math.random() * 40,
+    alpha: 0.4 + Math.random() * 0.55,
+  });
+}
+
+/* ── pulse animation ── */
+// β-oscillation: FRC breathes
+let breathT = 0;
+
+function breath() {
+  breathT += 0.018;
+  return 1 + 0.06 * Math.sin(breathT);
+}
+
+/* ── helpers ── */
+function toXY(r, z) {
+  // project 3D cylindrical (r,z) → 2D screen
+  // We show a side cross-section: x = CX + z, y = CY ∓ r
+  return { x: CX + z, y: CY - r };
+}
+
+/* ── draw external field lines ── */
+function drawExternalField(scale) {
+  const nLines = 9;
+  const rStart = RWALL + 10;
+  ctx.strokeStyle = 'rgba(80,170,255,0.5)';
+  ctx.lineWidth = 1.5;
+
+  for (let i = 0; i < nLines; i++) {
+    const yOff = -RWALL + (RWALL * 2 / (nLines - 1)) * i;
+    const absY = Math.abs(yOff);
+    // Outside separatrix: field goes left → right (+z direction)
+    const inFRC = absY < RS0 * scale * Math.sqrt(1 - Math.min(1, (0 / ZS) ** 2)) * 0.95;
+
+    if (inFRC) continue; // skip interior — drawn separately
+
+    ctx.beginPath();
+    ctx.moveTo(CX - ZS - 40, CY - yOff);
+    ctx.lineTo(CX + ZS + 40, CY - yOff);
+    ctx.stroke();
+
+    // Arrow at 2/3 along
+    const ax = CX + (ZS + 40) * 0.3;
+    const ay = CY - yOff;
+    drawArrow(ax, ay, 1, 0, 'rgba(80,170,255,0.8)');
+  }
+}
+
+/* ── draw internal (reversed) field lines ── */
+function drawInternalField(scale) {
+  const nLines = 7;
+  ctx.strokeStyle = 'rgba(255,80,80,0.55)';
+  ctx.lineWidth = 1.5;
+
+  for (let i = 1; i < nLines - 1; i++) {
+    const frac = i / (nLines - 1); // 0..1
+    const rFrac = (frac - 0.5) * 2 * 0.85; // -0.85..0.85
+    const yOff = rFrac * RS0 * scale * 0.7;
+
+    ctx.beginPath();
+    ctx.moveTo(CX + ZS + 10, CY - yOff);
+    ctx.lineTo(CX - ZS - 10, CY - yOff);
+    ctx.stroke();
+
+    // Arrow at 1/3 from right
+    const ax = CX + (ZS) * 0.3;
+    const ay = CY - yOff;
+    drawArrow(ax, ay, -1, 0, 'rgba(255,100,100,0.9)');
+  }
+}
+
+/* ── draw field line arrow ── */
+function drawArrow(x, y, dx, dy, color) {
+  const len = 8;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  if (dx > 0) {
+    ctx.moveTo(x + len, y);
+    ctx.lineTo(x, y - 4);
+    ctx.lineTo(x, y + 4);
+  } else {
+    ctx.moveTo(x - len, y);
+    ctx.lineTo(x, y - 4);
+    ctx.lineTo(x, y + 4);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+/* ── separatrix ── */
+function drawSeparatrix(scale) {
+  ctx.strokeStyle = 'rgba(170,255,170,0.7)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 4]);
+
+  // Upper boundary
+  ctx.beginPath();
+  for (let z = -ZS; z <= ZS; z += 2) {
+    const rs = RS0 * scale * Math.sqrt(1 - (z / ZS) ** 2);
+    const { x, y } = toXY(rs, z);
+    z === -ZS ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Lower boundary
+  ctx.beginPath();
+  for (let z = -ZS; z <= ZS; z += 2) {
+    const rs = RS0 * scale * Math.sqrt(1 - (z / ZS) ** 2);
+    const { x, y } = toXY(-rs, z);
+    z === -ZS ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+/* ── plasma glow fill ── */
+function drawPlasmaGlow(scale) {
+  // Gradient fill inside separatrix
+  const grd = ctx.createRadialGradient(CX, CY, 0, CX, CY, RS0 * scale);
+  grd.addColorStop(0,   'rgba(255,200,80,0.38)');
+  grd.addColorStop(0.4, 'rgba(255,120,20,0.22)');
+  grd.addColorStop(1,   'rgba(255,60,0,0.0)');
+
+  ctx.save();
+  // Clip to separatrix shape
+  ctx.beginPath();
+  for (let z = -ZS; z <= ZS; z += 2) {
+    const rs = RS0 * scale * Math.sqrt(1 - (z / ZS) ** 2);
+    const { x, y } = toXY(rs, z);
+    z === -ZS ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  for (let z = ZS; z >= -ZS; z -= 2) {
+    const rs = RS0 * scale * Math.sqrt(1 - (z / ZS) ** 2);
+    const { x, y } = toXY(-rs, z);
+    ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.clip();
+  ctx.fillStyle = grd;
+  ctx.fillRect(CX - ZS - 5, CY - RS0 * scale - 5, (ZS + 5) * 2, (RS0 * scale + 5) * 2);
+  ctx.restore();
+}
+
+/* ── FRC closed field lines inside ── */
+function drawFRCFieldLines(scale) {
+  const nFRC = 5;
+  for (let k = 1; k <= nFRC; k++) {
+    const frac = k / (nFRC + 1); // 0..1 (how close to axis)
+    ctx.strokeStyle = `rgba(255,100,80,${0.15 + frac * 0.25})`;
+    ctx.lineWidth = 1;
+
+    // FRC closed flux surface: a nested ellipse-like curve
+    // r(z) = r_peak * sqrt(1 - (z/z_peak)^2) where z_peak < ZS
+    const rPeak = RS0 * scale * frac * 0.88;
+    const zPeak = ZS * scale * Math.sqrt(frac) * 0.9;
+
+    ctx.beginPath();
+    let first = true;
+    for (let theta = 0; theta <= Math.PI * 2 + 0.05; theta += 0.05) {
+      const z = zPeak * Math.cos(theta);
+      const r = rPeak * Math.sin(theta);
+      const { x, y } = toXY(r, z);
+      first ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      first = false;
+    }
+    ctx.stroke();
+  }
+}
+
+/* ── particles ── */
+function updateDrawParticles(scale) {
+  for (const p of parts) {
+    // Drift
+    p.ang += p.vAng;
+    p.z += p.vz;
+
+    // Bounce at magnetic mirrors (ends of FRC)
+    const zLim = ZS * scale * 0.88;
+    if (Math.abs(p.z) > zLim) {
+      p.vz *= -1;
+      p.z = Math.sign(p.z) * zLim;
+    }
+
+    // Keep within separatrix radially
+    const rLim = RS0 * scale * Math.sqrt(Math.max(0, 1 - (p.z / (ZS * scale)) ** 2)) * 0.92;
+    if (p.r > rLim) p.r = rLim * 0.95;
+
+    // Screen position: show upper cross-section
+    const screenR = p.r * Math.abs(Math.sin(p.ang)) + p.r * 0.15;
+    const sx = CX + p.z;
+    const sy = CY - screenR;
+
+    // Glow
+    const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, p.size * 3.5);
+    grad.addColorStop(0, `hsla(${p.hue},90%,75%,${p.alpha})`);
+    grad.addColorStop(1, `hsla(${p.hue},90%,60%,0)`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(sx, sy, p.size * 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Core dot
+    ctx.fillStyle = `hsla(${p.hue},95%,85%,${p.alpha})`;
+    ctx.beginPath();
+    ctx.arc(sx, sy, p.size * 0.7, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Mirror image (below axis)
+    const sy2 = CY + screenR;
+    const grad2 = ctx.createRadialGradient(sx, sy2, 0, sx, sy2, p.size * 3.5);
+    grad2.addColorStop(0, `hsla(${p.hue},90%,75%,${p.alpha * 0.7})`);
+    grad2.addColorStop(1, `hsla(${p.hue},90%,60%,0)`);
+    ctx.fillStyle = grad2;
+    ctx.beginPath();
+    ctx.arc(sx, sy2, p.size * 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/* ── wall / coils ── */
+function drawWall() {
+  const wallY1 = CY - RWALL;
+  const wallY2 = CY + RWALL;
+  const x0 = CX - ZS - 50;
+  const x1 = CX + ZS + 50;
+
+  ctx.strokeStyle = 'rgba(100,150,200,0.25)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(x0, wallY1); ctx.lineTo(x1, wallY1); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x0, wallY2); ctx.lineTo(x1, wallY2); ctx.stroke();
+
+  // Coil markers
+  const coilPositions = [-ZS - 30, -ZS * 0.5, 0, ZS * 0.5, ZS + 30];
+  for (const zc of coilPositions) {
+    const x = CX + zc;
+    ctx.fillStyle = 'rgba(100,180,255,0.5)';
+    ctx.fillRect(x - 5, wallY1 - 8, 10, 8);
+    ctx.fillRect(x - 5, wallY2, 10, 8);
+    ctx.strokeStyle = 'rgba(100,180,255,0.4)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x - 5, wallY1 - 8, 10, 8);
+    ctx.strokeRect(x - 5, wallY2, 10, 8);
+  }
+
+  ctx.fillStyle = '#4af8';
+  ctx.font = '10px Share Tech Mono';
+  ctx.textAlign = 'left';
+  ctx.fillText('コイル群', x0 + 4, wallY1 - 12);
+}
+
+/* ── HUD ── */
+function drawHUD(scale) {
+  const beta = (0.82 + (scale - 1) * 2).toFixed(2);
+  const xs = (ZS * 2 * scale / 10).toFixed(1);
+  const rs = (RS0 * scale / 10).toFixed(1);
+
+  ctx.fillStyle = '#ff6a0099';
+  ctx.font = '11px Share Tech Mono';
+  ctx.textAlign = 'left';
+  ctx.fillText(`β ≈ ${beta}`, 10, H - 54);
+  ctx.fillText(`L = ${xs} cm`, 10, H - 38);
+  ctx.fillText(`rs = ${rs} cm`, 10, H - 22);
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#4af8';
+  ctx.fillText('外部 B →', W - 10, 60);
+  ctx.fillStyle = '#f448';
+  ctx.fillText('内部 B ←', W - 10, 80);
+}
+
+/* ── background ── */
+function drawBG() {
+  ctx.fillStyle = '#05050f';
+  ctx.fillRect(0, 0, W, H);
+
+  // subtle grid
+  ctx.strokeStyle = '#0a0a20';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 36) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = 0; y < H; y += 36) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  // Center axis
+  ctx.strokeStyle = '#ffffff18';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 6]);
+  ctx.beginPath();
+  ctx.moveTo(CX - ZS - 50, CY);
+  ctx.lineTo(CX + ZS + 50, CY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#ffffff33';
+  ctx.font = '10px Share Tech Mono';
+  ctx.textAlign = 'left';
+  ctx.fillText('対称軸 (Z)', CX - ZS - 48, CY - 5);
+}
+
+/* ── phase label ── */
+const phaseEl = document.getElementById('phase');
+function updatePhase(scale) {
+  const b = (scale - 1) * 100;
+  if (b < 1) phaseEl.textContent = '定常閉じ込め状態';
+  else if (b < 4) phaseEl.textContent = 'β振動 – 呼吸モード';
+  else phaseEl.textContent = '高β圧縮フェーズ ⚡';
+}
+
+/* ── main loop ── */
+function frame() {
+  t += 0.5;
+  const scale = breath();
+
+  drawBG();
+  drawWall();
+  drawExternalField(scale);
+  drawFRCFieldLines(scale);
+  drawPlasmaGlow(scale);
+  drawSeparatrix(scale);
+  drawInternalField(scale);
+  updateDrawParticles(scale);
+  drawHUD(scale);
+  updatePhase(scale);
+
+  requestAnimationFrame(frame);
+}
+
+frame();
+</script>
+</body>
+</html>

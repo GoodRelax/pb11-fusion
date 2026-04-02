@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>核融合 4サイクルエンジン</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&display=swap');
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: #03030a;
+  font-family: 'Share Tech Mono', monospace;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 16px 8px;
+  overflow: hidden;
+}
+
+h1 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(1.4rem, 4vw, 2rem);
+  letter-spacing: 0.2em;
+  color: #fff;
+  margin-bottom: 2px;
+}
+.sub {
+  font-size: 0.6rem;
+  color: #ffffff33;
+  letter-spacing: 0.2em;
+  margin-bottom: 12px;
+}
+
+.layout {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+/* Phase indicator sidebar */
+.phases {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 130px;
+  flex-shrink: 0;
+}
+
+.phase-card {
+  border: 1px solid #ffffff11;
+  border-radius: 3px;
+  padding: 8px 10px;
+  font-size: 0.58rem;
+  letter-spacing: 0.06em;
+  color: #555;
+  transition: all 0.3s;
+  cursor: default;
+  background: #06060f;
+}
+
+.phase-card.active {
+  border-color: var(--pc);
+  color: #fff;
+  background: #0d0d1e;
+  box-shadow: 0 0 12px var(--pc-glow);
+}
+
+.phase-card .pnum {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.1rem;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.phase-card .pname {
+  font-size: 0.7rem;
+  font-weight: bold;
+  margin-bottom: 3px;
+}
+
+.phase-card .pdesc {
+  font-size: 0.55rem;
+  line-height: 1.5;
+  color: #888;
+}
+
+.phase-card.active .pdesc { color: #aaa; }
+
+/* Progress bar */
+.pbar-bg {
+  width: 100%;
+  height: 3px;
+  background: #ffffff11;
+  border-radius: 2px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+.pbar {
+  height: 100%;
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.05s linear;
+  background: var(--pc);
+}
+
+/* Right: canvas + desc */
+.right { display: flex; flex-direction: column; gap: 10px; }
+
+canvas {
+  background: #03030a;
+  border: 1px solid #ffffff0d;
+  display: block;
+}
+
+.desc-box {
+  background: #06060f;
+  border: 1px solid #ffffff0d;
+  border-left: 2px solid var(--active-color, #ffffff33);
+  padding: 8px 12px;
+  font-size: 0.6rem;
+  line-height: 1.7;
+  color: #888;
+  letter-spacing: 0.06em;
+  width: 420px;
+  min-height: 48px;
+  transition: border-color 0.3s;
+}
+
+.desc-box strong { color: #fff; }
+
+/* RPM / cycle counter */
+.hud-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.hud-val {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.6rem;
+  letter-spacing: 0.1em;
+  line-height: 1;
+}
+
+.hud-label {
+  font-size: 0.55rem;
+  color: #ffffff44;
+  letter-spacing: 0.1em;
+  margin-top: 2px;
+}
+
+.speed-ctrl {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.btn {
+  background: #0d0d1e;
+  border: 1px solid #ffffff22;
+  color: #888;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.6rem;
+  padding: 4px 10px;
+  cursor: pointer;
+  border-radius: 2px;
+  letter-spacing: 0.1em;
+}
+.btn:hover { border-color: #ffffff55; color: #fff; }
+.btn.active-btn { border-color: #ffffff66; color: #fff; background: #1a1a30; }
+</style>
+</head>
+<body>
+
+<h1>核融合 4サイクルエンジン</h1>
+<div class="sub">電子ビーム集束 → Zピンチ圧縮 → 核融合バースト → α粒子回収</div>
+
+<div class="layout">
+  <!-- Phase cards -->
+  <div class="phases" id="phaseCards"></div>
+
+  <div class="right">
+    <div class="hud-row">
+      <div>
+        <div class="hud-val" id="cycleCount" style="color:#ffffff88">0000</div>
+        <div class="hud-label">CYCLES</div>
+      </div>
+      <div>
+        <div class="hud-val" id="energyOut" style="color:#00ffb2">0.0</div>
+        <div class="hud-label">NET ENERGY (arb.)</div>
+      </div>
+      <div class="speed-ctrl">
+        <button class="btn" onclick="setSpeed(0.4)">◀◀ 遅</button>
+        <button class="btn active-btn" onclick="setSpeed(1)">▶ 標準</button>
+        <button class="btn" onclick="setSpeed(2.5)">▶▶ 速</button>
+      </div>
+    </div>
+
+    <canvas id="c" width="420" height="340"></canvas>
+    <div class="desc-box" id="descBox"></div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const CX = W / 2, CY = H / 2;
+
+let speedMult = 1;
+let globalT = 0;
+let cycles = 0;
+let totalEnergy = 0;
+
+function setSpeed(s) {
+  speedMult = s;
+  document.querySelectorAll('.speed-ctrl .btn').forEach(b => b.classList.remove('active-btn'));
+  event.target.classList.add('active-btn');
+}
+
+/* ── Phase definitions ── */
+const PHASES = [
+  {
+    num: '01', name: '吸気', sub: 'INTAKE',
+    color: '#4af', glow: '#4af4',
+    desc: '<strong>電子ビームで陽子を集束。</strong>負電位の電子雲が形成され、周囲の陽子（p）とホウ素イオン（B）が中心に向かって加速される。再結合が起きる前にナノ秒で次フェーズへ。',
+    duration: 80,
+  },
+  {
+    num: '02', name: '圧縮', sub: 'COMPRESSION',
+    color: '#fa0', glow: '#fa04',
+    desc: '<strong>Zピンチ発火。</strong>外側電極に超大電流（数MA）をナノ秒パルスで流す。ローレンツ力がプラズマを内側にバチンと圧縮。密度・温度が爆発的に上昇。',
+    duration: 60,
+  },
+  {
+    num: '03', name: '燃焼', sub: 'FUSION BURST',
+    color: '#f44', glow: '#f444',
+    desc: '<strong>p-¹¹B 核融合バースト。</strong>温度が数十億℃に達し、陽子とホウ素が融合。3つのα粒子（⁴He）が高エネルギーで飛散。中性子はほぼゼロ。',
+    duration: 40,
+  },
+  {
+    num: '04', name: '排気', sub: 'HARVEST',
+    color: '#0fb', glow: '#0fb4',
+    desc: '<strong>α粒子を直接回収。</strong>荷電粒子（⁴He²⁺）を外側の電極で受け止め、直接電気に変換。タービン不要。炉壁をリセットして次サイクルへ。',
+    duration: 70,
+  },
+];
+
+const TOTAL_DUR = PHASES.reduce((s, p) => s + p.duration, 0);
+
+/* ── Build phase cards ── */
+const cardsEl = document.getElementById('phaseCards');
+PHASES.forEach((p, i) => {
+  const el = document.createElement('div');
+  el.className = 'phase-card';
+  el.id = `pc${i}`;
+  el.style.setProperty('--pc', p.color);
+  el.style.setProperty('--pc-glow', p.glow);
+  el.innerHTML = `
+    <div class="pnum" style="color:${p.color}">${p.num}</div>
+    <div class="pname">${p.name}</div>
+    <div class="pdesc">${p.sub}</div>
+    <div class="pbar-bg"><div class="pbar" id="pbar${i}" style="background:${p.color}"></div></div>
+  `;
+  cardsEl.appendChild(el);
+});
+
+/* ── Particles ── */
+// Protons and B ions
+const ionCount = 40;
+const ions = Array.from({length: ionCount}, (_, i) => ({
+  x: CX + (Math.random()-0.5)*260,
+  y: CY + (Math.random()-0.5)*200,
+  vx: 0, vy: 0,
+  r: i < ionCount * 0.7 ? 3.5 : 5.5, // p or B
+  type: i < ionCount * 0.7 ? 'p' : 'B',
+  color: i < ionCount * 0.7 ? '#88aaff' : '#00cc88',
+  phase: Math.random() * Math.PI * 2,
+}));
+
+// Alpha products
+const alphas = Array.from({length: 18}, (_, i) => ({
+  x: CX, y: CY,
+  vx: 0, vy: 0,
+  angle: (i / 18) * Math.PI * 2,
+  dist: 0,
+  active: false,
+}));
+
+// Electrons
+const electrons = Array.from({length: 20}, (_, i) => ({
+  angle: (i / 20) * Math.PI * 2,
+  r: 30 + Math.random() * 20,
+  speed: 0.06 + Math.random() * 0.04,
+  active: false,
+}));
+
+// Zpinch sparks
+const sparks = Array.from({length: 24}, (_, i) => ({
+  angle: (i / 24) * Math.PI * 2,
+  len: 0,
+  active: false,
+}));
+
+/* ── helpers ── */
+function glow(x, y, r, color) {
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, color);
+  g.addColorStop(1, color.replace(/[\d.]+\)$/, '0)'));
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawGrid() {
+  ctx.strokeStyle = '#ffffff07';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 30) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for (let y = 0; y < H; y += 30) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+}
+
+function drawChamber(phaseIdx, localT) {
+  // Outer ring
+  const ringAlpha = 0.3 + 0.2 * Math.sin(globalT * 0.05);
+  const color = PHASES[phaseIdx].color;
+  ctx.strokeStyle = color + '44';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(CX, CY, 150, 0, Math.PI * 2); ctx.stroke();
+
+  // Electrode marks (top/bottom)
+  for (let a = 0; a < 8; a++) {
+    const ang = (a / 8) * Math.PI * 2;
+    const x1 = CX + Math.cos(ang) * 148;
+    const y1 = CY + Math.sin(ang) * 148;
+    const x2 = CX + Math.cos(ang) * 160;
+    const y2 = CY + Math.sin(ang) * 160;
+    ctx.strokeStyle = color + '66';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  }
+}
+
+/* ── Phase renderers ── */
+
+// PHASE 0: Intake — electron beam pulls ions inward
+function renderIntake(p) {
+  // Electron beam converging to center
+  electrons.forEach((e, i) => {
+    e.angle += e.speed * speedMult;
+    const rx = 140 + 10 * Math.sin(e.angle * 0.3);
+    const ry = 110 + 8 * Math.sin(e.angle * 0.4);
+
+    // Beam line from edge to center
+    const ex = CX + Math.cos(e.angle) * rx;
+    const ey = CY + Math.sin(e.angle) * ry;
+    const alpha = 0.3 + 0.3 * p;
+
+    ctx.strokeStyle = `rgba(100,180,255,${alpha * 0.4})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(CX, CY); ctx.stroke();
+
+    // Electron dot
+    glow(ex, ey, 8, `rgba(100,180,255,${alpha * 0.6})`);
+    ctx.fillStyle = '#aaccff';
+    ctx.beginPath(); ctx.arc(ex, ey, 2.5, 0, Math.PI * 2); ctx.fill();
+  });
+
+  // Negative potential well at center
+  const wellR = 25 + 15 * p;
+  glow(CX, CY, wellR * 2, `rgba(80,120,255,${p * 0.4})`);
+  ctx.strokeStyle = `rgba(80,120,255,${p * 0.6})`;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.arc(CX, CY, wellR, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = `rgba(100,160,255,${p * 0.8})`;
+  ctx.font = '9px Share Tech Mono';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('e⁻ 雲', CX, CY);
+  ctx.textBaseline = 'alphabetic';
+
+  // Ions moving inward
+  ions.forEach((ion, i) => {
+    const targetX = CX + (Math.random()-0.5)*6;
+    const targetY = CY + (Math.random()-0.5)*6;
+    ion.vx += (CX - ion.x) * 0.008 * p * speedMult;
+    ion.vy += (CY - ion.y) * 0.008 * p * speedMult;
+    ion.vx *= 0.92; ion.vy *= 0.92;
+    ion.x += ion.vx * speedMult;
+    ion.y += ion.vy * speedMult;
+
+    const dist = Math.hypot(ion.x - CX, ion.y - CY);
+    const alpha = Math.min(1, dist / 60);
+    glow(ion.x, ion.y, ion.r * 2.5, ion.color + Math.floor(alpha*150).toString(16).padStart(2,'0'));
+    ctx.fillStyle = ion.color;
+    ctx.beginPath(); ctx.arc(ion.x, ion.y, ion.r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = `${Math.max(6, ion.r * 0.8)}px Share Tech Mono`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(ion.type, ion.x, ion.y);
+    ctx.textBaseline = 'alphabetic';
+  });
+}
+
+// PHASE 1: Compression — Zpinch bam
+function renderCompression(p) {
+  const ease = 1 - Math.pow(1 - p, 3);
+
+  // Current lines
+  const nLines = 16;
+  for (let i = 0; i < nLines; i++) {
+    const angle = (i / nLines) * Math.PI * 2;
+    const outerR = 150;
+    const innerR = 20 + 50 * (1 - ease);
+    const x1 = CX + Math.cos(angle) * outerR;
+    const y1 = CY + Math.sin(angle) * outerR;
+    const x2 = CX + Math.cos(angle) * innerR;
+    const y2 = CY + Math.sin(angle) * innerR;
+
+    ctx.strokeStyle = `rgba(255,180,0,${0.4 + ease * 0.5})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+
+    // Arrowhead
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.hypot(dx, dy);
+    const nx = dx/len, ny = dy/len;
+    const ax = x2 - nx*10, ay = y2 - ny*10;
+    ctx.fillStyle = `rgba(255,200,50,${0.6 + ease * 0.4})`;
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(ax - ny*4, ay + nx*4);
+    ctx.lineTo(ax + ny*4, ay - nx*4);
+    ctx.closePath(); ctx.fill();
+  }
+
+  // Compressing plasma
+  const plasmaR = 100 * (1 - ease * 0.75);
+  const flash = ease > 0.85 ? (ease - 0.85) / 0.15 : 0;
+  glow(CX, CY, plasmaR * 1.5, `rgba(255,140,0,${0.15 + ease * 0.3})`);
+  ctx.strokeStyle = `rgba(255,180,50,${0.4 + ease * 0.5})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(CX, CY, plasmaR, 0, Math.PI * 2); ctx.stroke();
+
+  // Compress ions inward
+  ions.forEach(ion => {
+    const dist = Math.hypot(ion.x - CX, ion.y - CY);
+    const targetR = Math.max(8, dist * (1 - ease * 0.85));
+    const angle = Math.atan2(ion.y - CY, ion.x - CX);
+    ion.x = CX + Math.cos(angle) * targetR;
+    ion.y = CY + Math.sin(angle) * targetR;
+
+    glow(ion.x, ion.y, ion.r * 2, ion.color + '88');
+    ctx.fillStyle = ion.color;
+    ctx.beginPath(); ctx.arc(ion.x, ion.y, ion.r * (0.8 + 0.2*ease), 0, Math.PI * 2); ctx.fill();
+  });
+
+  // Flash at full compression
+  if (flash > 0) {
+    glow(CX, CY, 80 * flash, `rgba(255,220,100,${flash * 0.7})`);
+  }
+
+  // Magnetic field rings
+  for (let k = 1; k <= 3; k++) {
+    const fr = k / 4;
+    ctx.strokeStyle = `rgba(255,100,0,${ease * fr * 0.4})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(CX, CY, plasmaR * fr, plasmaR * fr * 0.35, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+// PHASE 2: Fusion burst
+function renderFusion(p) {
+  const burst = Math.sin(p * Math.PI);
+
+  // Central explosion
+  glow(CX, CY, 60 * burst, `rgba(255,255,200,${burst * 0.8})`);
+  glow(CX, CY, 120 * burst, `rgba(255,100,30,${burst * 0.4})`);
+  glow(CX, CY, 180 * burst, `rgba(200,50,0,${burst * 0.15})`);
+
+  // Reaction label
+  if (burst > 0.3) {
+    ctx.fillStyle = `rgba(255,255,200,${burst})`;
+    ctx.font = 'bold 11px Share Tech Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText('p + ¹¹B → 3×⁴He', CX, CY - 110);
+    ctx.font = '9px Share Tech Mono';
+    ctx.fillStyle = `rgba(255,200,100,${burst * 0.8})`;
+    ctx.fillText('+8.7 MeV', CX, CY - 96);
+  }
+
+  // 3 groups of 3 alpha particles flying out (= 9 total, 3 directions × 3)
+  const nGroups = 3;
+  alphas.forEach((a, i) => {
+    const group = Math.floor(i / (alphas.length / nGroups));
+    const baseAngle = (group / nGroups) * Math.PI * 2 - Math.PI / 2;
+    const spread = ((i % (alphas.length / nGroups)) / (alphas.length / nGroups) - 0.5) * 0.6;
+    const angle = baseAngle + spread + p * 0.2;
+    const dist = p * 160;
+
+    const ax = CX + Math.cos(angle) * dist;
+    const ay = CY + Math.sin(angle) * dist;
+    const alpha = Math.max(0, 1 - p * 0.8);
+
+    glow(ax, ay, 14, `rgba(0,255,180,${alpha * 0.5})`);
+    ctx.fillStyle = `rgba(0,255,180,${alpha})`;
+    ctx.beginPath(); ctx.arc(ax, ay, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+    ctx.font = '6px Share Tech Mono';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('α', ax, ay);
+    ctx.textBaseline = 'alphabetic';
+
+    // Trail
+    ctx.strokeStyle = `rgba(0,255,180,${alpha * 0.3})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(CX, CY); ctx.lineTo(ax, ay); ctx.stroke();
+  });
+
+  // Shockwave ring
+  const swR = p * 170;
+  ctx.strokeStyle = `rgba(255,200,100,${(1-p) * 0.6})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(CX, CY, swR, 0, Math.PI * 2); ctx.stroke();
+
+  // Central core
+  const coreR = Math.max(3, 20 * (1 - p * 0.8));
+  glow(CX, CY, coreR * 2, `rgba(255,255,255,${(1-p)*0.8})`);
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(CX, CY, coreR, 0, Math.PI * 2); ctx.fill();
+}
+
+// PHASE 3: Harvest — collect alphas, direct conversion
+function renderHarvest(p) {
+  const ease = Math.pow(p, 0.6);
+
+  // Collector ring
+  const collectorR = 130;
+  ctx.strokeStyle = `rgba(0,255,180,${0.3 + ease * 0.4})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(CX, CY, collectorR, 0, Math.PI * 2); ctx.stroke();
+
+  // Collector segments lighting up
+  for (let i = 0; i < 12; i++) {
+    const ang = (i / 12) * Math.PI * 2;
+    const lit = (i / 12) < ease;
+    const cx2 = CX + Math.cos(ang) * collectorR;
+    const cy2 = CY + Math.sin(ang) * collectorR;
+    ctx.fillStyle = lit ? `rgba(0,255,180,0.8)` : `rgba(0,255,180,0.15)`;
+    ctx.beginPath(); ctx.arc(cx2, cy2, 7, 0, Math.PI * 2); ctx.fill();
+    if (lit) {
+      glow(cx2, cy2, 14, 'rgba(0,255,180,0.3)');
+    }
+  }
+
+  // Alpha particles reaching collectors
+  const nAlpha = 9;
+  for (let i = 0; i < nAlpha; i++) {
+    const angle = (i / nAlpha) * Math.PI * 2;
+    const dist = ease * collectorR;
+    const ax = CX + Math.cos(angle) * dist;
+    const ay = CY + Math.sin(angle) * dist;
+    const alpha2 = Math.max(0, 1 - ease * 1.2);
+
+    glow(ax, ay, 12, `rgba(0,255,180,${alpha2 * 0.5})`);
+    ctx.fillStyle = `rgba(0,255,180,${alpha2 + 0.1})`;
+    ctx.beginPath(); ctx.arc(ax, ay, 4.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.font = '6px Share Tech Mono';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('α', ax, ay);
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  // Energy flow arrows → output
+  if (ease > 0.5) {
+    const flowAlpha = (ease - 0.5) * 2;
+    for (let i = 0; i < 6; i++) {
+      const ang = (i / 6) * Math.PI * 2;
+      const x1 = CX + Math.cos(ang) * collectorR;
+      const y1 = CY + Math.sin(ang) * collectorR;
+      const x2 = CX + Math.cos(ang) * (collectorR + 20);
+      const y2 = CY + Math.sin(ang) * (collectorR + 20);
+      ctx.strokeStyle = `rgba(0,255,180,${flowAlpha * 0.6})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+
+      ctx.fillStyle = `rgba(0,255,180,${flowAlpha * 0.8})`;
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      const perp = 3;
+      const nx = Math.cos(ang), ny = Math.sin(ang);
+      ctx.lineTo(x2 - nx*8 - ny*perp, y2 - ny*8 + nx*perp);
+      ctx.lineTo(x2 - nx*8 + ny*perp, y2 - ny*8 - nx*perp);
+      ctx.closePath(); ctx.fill();
+    }
+
+    ctx.fillStyle = `rgba(0,255,180,${flowAlpha})`;
+    ctx.font = 'bold 10px Share Tech Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText('⚡ 直接発電', CX, H - 30);
+    ctx.font = '8px Share Tech Mono';
+    ctx.fillStyle = `rgba(0,255,180,${flowAlpha * 0.6})`;
+    ctx.fillText('タービン不要', CX, H - 18);
+  }
+
+  // Reset ions for next cycle
+  if (p > 0.85) {
+    const resetP = (p - 0.85) / 0.15;
+    ions.forEach(ion => {
+      const targetX = CX + (Math.random()-0.5)*240 * resetP;
+      const targetY = CY + (Math.random()-0.5)*180 * resetP;
+      ion.x += (targetX - ion.x) * 0.04 * speedMult;
+      ion.y += (targetY - ion.y) * 0.04 * speedMult;
+    });
+  }
+
+  // "Next cycle" flash
+  if (p > 0.92) {
+    const flash = (p - 0.92) / 0.08;
+    ctx.fillStyle = `rgba(0,255,180,${flash * 0.08})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
+/* ── Main loop ── */
+let cycleT = 0;
+const descEl = document.getElementById('descBox');
+const cycleEl = document.getElementById('cycleCount');
+const energyEl = document.getElementById('energyOut');
+
+function getCurrentPhase(ct) {
+  let acc = 0;
+  for (let i = 0; i < PHASES.length; i++) {
+    acc += PHASES[i].duration;
+    if (ct < acc) {
+      const prev = acc - PHASES[i].duration;
+      return { idx: i, local: (ct - prev) / PHASES[i].duration };
+    }
+  }
+  return { idx: PHASES.length - 1, local: 1 };
+}
+
+function frame() {
+  globalT += speedMult;
+  cycleT += speedMult;
+  if (cycleT >= TOTAL_DUR) {
+    cycleT -= TOTAL_DUR;
+    cycles++;
+    totalEnergy += 8.7 * (0.85 + Math.random() * 0.15);
+    cycleEl.textContent = String(cycles).padStart(4, '0');
+    energyEl.textContent = totalEnergy.toFixed(1);
+  }
+
+  const { idx, local } = getCurrentPhase(cycleT);
+
+  // Background
+  ctx.fillStyle = '#03030a';
+  ctx.fillRect(0, 0, W, H);
+  drawGrid();
+  drawChamber(idx, local);
+
+  // Render phase
+  if (idx === 0) renderIntake(local);
+  else if (idx === 1) renderCompression(local);
+  else if (idx === 2) renderFusion(local);
+  else renderHarvest(local);
+
+  // Phase label
+  const ph = PHASES[idx];
+  ctx.fillStyle = ph.color;
+  ctx.font = 'bold 11px Share Tech Mono';
+  ctx.textAlign = 'left';
+  ctx.fillText(`PHASE ${ph.num} : ${ph.name}`, 12, 22);
+
+  // Progress arc
+  const totalProgress = cycleT / TOTAL_DUR;
+  ctx.strokeStyle = ph.color + '66';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(CX, CY, 153, -Math.PI/2, -Math.PI/2 + totalProgress * Math.PI * 2);
+  ctx.stroke();
+
+  // Update cards
+  PHASES.forEach((p, i) => {
+    const card = document.getElementById(`pc${i}`);
+    const bar = document.getElementById(`pbar${i}`);
+    card.classList.toggle('active', i === idx);
+    bar.style.width = i === idx ? `${local * 100}%` : (i < idx ? '100%' : '0%');
+  });
+
+  // Update desc
+  document.getElementById('descBox').style.setProperty('--active-color', ph.color);
+  document.getElementById('descBox').style.borderLeftColor = ph.color;
+  descEl.innerHTML = ph.desc;
+
+  requestAnimationFrame(frame);
+}
+
+// Scatter ions initially
+ions.forEach(ion => {
+  ion.x = CX + (Math.random()-0.5)*260;
+  ion.y = CY + (Math.random()-0.5)*200;
+});
+
+frame();
+</script>
+</body>
+</html>

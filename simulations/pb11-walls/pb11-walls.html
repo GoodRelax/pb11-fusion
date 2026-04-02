@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>p-B11 核融合の壁</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&display=swap');
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: #04040c;
+  font-family: 'Share Tech Mono', monospace;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  padding: 16px 8px 24px;
+  overflow-x: hidden;
+}
+
+h1 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(1.4rem, 5vw, 2.2rem);
+  letter-spacing: 0.18em;
+  color: #fff;
+  margin-bottom: 2px;
+}
+
+.sub {
+  font-size: 0.62rem;
+  color: #ffffff44;
+  letter-spacing: 0.18em;
+  margin-bottom: 14px;
+}
+
+/* Tab buttons */
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.tab {
+  background: #0d0d20;
+  border: 1px solid #ffffff22;
+  color: #888;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.2s;
+}
+
+.tab:hover { border-color: #ffffff44; color: #bbb; }
+.tab.active { background: #1a1a30; border-color: #ffffff66; color: #fff; }
+
+canvas {
+  background: #04040c;
+  border: 1px solid #ffffff11;
+  box-shadow: 0 0 30px #00000088;
+  display: block;
+}
+
+.desc {
+  max-width: 560px;
+  width: 100%;
+  margin-top: 12px;
+  background: #0a0a18;
+  border: 1px solid #ffffff0e;
+  border-left: 2px solid #ffffff33;
+  padding: 10px 14px;
+  font-size: 0.62rem;
+  line-height: 1.8;
+  color: #aaa;
+  letter-spacing: 0.06em;
+}
+
+.desc strong { color: #fff; }
+.desc .warn  { color: #ff5555; }
+.desc .good  { color: #00ffb2; }
+</style>
+</head>
+<body>
+
+<h1>p-¹¹B 融合の「壁」</h1>
+<div class="sub">3つの物理的障壁をビジュアライズ</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="setScene(0)">① クーロン障壁</button>
+  <button class="tab" onclick="setScene(1)">② 制動放射損失</button>
+  <button class="tab" onclick="setScene(2)">③ トレードオフの罠</button>
+</div>
+
+<canvas id="c" width="560" height="360"></canvas>
+
+<div class="desc" id="desc"></div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+let scene = 0;
+let t = 0;
+let animId;
+
+const descEl = document.getElementById('desc');
+
+const descs = [
+  `<strong>クーロン障壁</strong>：同じプラス電荷を持つ原子核同士は強く反発します。<br>
+  ホウ素は陽子数5なので反発が大きく、D-Tの<span class="warn">約30〜100倍の温度（数十億℃）</span>で陽子をぶつけないと障壁を突破できません。`,
+
+  `<strong>制動放射（ブレムスシュトラールング）</strong>：超高温プラズマの電子が動き回るとき、<span class="warn">X線としてエネルギーが逃げ続けます</span>。<br>
+  p-B11に必要な温度域では、この放射ロスが核融合で得るエネルギーを上回ってしまう可能性があります。`,
+
+  `<strong>トレードオフの罠</strong>：温度・密度・損失の3つは互いに干渉します。<br>
+  <span class="warn">温度を上げると制動放射が増え、密度を上げると不安定になり、損失を減らそうとするとプラズマが崩壊する</span>。すべてを同時に満たすスイートスポットは極めて狭い。`,
+];
+
+function setScene(n) {
+  scene = n;
+  t = 0;
+  document.querySelectorAll('.tab').forEach((b, i) => b.classList.toggle('active', i === n));
+  descEl.innerHTML = descs[n];
+}
+setScene(0);
+
+/* ══════════════════════════════
+   SCENE 0: Coulomb Barrier
+══════════════════════════════ */
+function drawCoulomb() {
+  const CX = W / 2, CY = H / 2 + 30;
+
+  // --- draw potential energy curve ---
+  // V(r) = coulomb repulsion peak, then nuclear well
+  function potential(x) {
+    // x: pixel offset from center (right side)
+    const r = x / 60; // normalized distance
+    if (r < 0.18) return -120; // nuclear well
+    return Math.min(160, 28 / r); // coulomb
+  }
+
+  // Axes
+  ctx.strokeStyle = '#ffffff22';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(60, 40); ctx.lineTo(60, H - 60); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(55, CY); ctx.lineTo(W - 20, CY); ctx.stroke();
+
+  ctx.fillStyle = '#ffffff44';
+  ctx.font = '9px Share Tech Mono';
+  ctx.textAlign = 'left';
+  ctx.fillText('ポテンシャル', 4, 36);
+  ctx.fillText('エネルギー', 4, 48);
+  ctx.fillText('距離 r →', W - 80, CY + 14);
+
+  // Draw curve
+  ctx.beginPath();
+  ctx.strokeStyle = '#ff8844';
+  ctx.lineWidth = 2;
+  let first = true;
+  for (let px = 62; px < W - 20; px++) {
+    const x = px - 60;
+    const v = potential(x);
+    const sy = CY - v;
+    first ? ctx.moveTo(px, sy) : ctx.lineTo(px, sy);
+    first = false;
+  }
+  ctx.stroke();
+
+  // Nuclear well label
+  ctx.fillStyle = '#44aaff88';
+  ctx.fillRect(62, CY + 20, 55, 80);
+  ctx.fillStyle = '#44aaff';
+  ctx.font = '8px Share Tech Mono';
+  ctx.textAlign = 'center';
+  ctx.fillText('核力の井戸', 90, CY + 70);
+  ctx.fillText('(ここに落ちれば融合)', 90, CY + 82);
+
+  // Barrier peak
+  const peakX = 60 + 28;
+  const peakY = CY - 160;
+  ctx.strokeStyle = '#ff444488';
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath(); ctx.moveTo(peakX, peakY); ctx.lineTo(peakX, CY); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#ff4444';
+  ctx.font = '8px Share Tech Mono';
+  ctx.textAlign = 'center';
+  ctx.fillText('クーロン障壁のピーク', peakX + 60, peakY - 4);
+
+  // --- D-T proton animation ---
+  const dtSpeed = 0.55;
+  const dtPhase = (t * dtSpeed) % 320;
+
+  // D-T energy level (low barrier to cross)
+  const dtEnergy = 85; // can cross
+  const dtY = CY - dtEnergy;
+
+  ctx.strokeStyle = '#4488ff55';
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(62, dtY); ctx.lineTo(W - 20, dtY); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#4488ffaa';
+  ctx.font = '8px Share Tech Mono';
+  ctx.textAlign = 'right';
+  ctx.fillText('D-T 温度エネルギー (~1億℃)', W - 22, dtY - 4);
+
+  // p-B11 energy level — must be much higher
+  const pbEnergy = 175;
+  const pbY = CY - pbEnergy;
+  ctx.strokeStyle = '#00ffb255';
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(62, pbY); ctx.lineTo(W - 20, pbY); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#00ffb2aa';
+  ctx.font = '8px Share Tech Mono';
+  ctx.textAlign = 'right';
+  ctx.fillText('p-B11 必要エネルギー (~数十億℃)', W - 22, pbY - 4);
+
+  // Bouncing D-T particle
+  const dtBallX = 62 + dtPhase;
+  if (dtBallX < W - 40) {
+    let ballY = dtY;
+    // Check if it hits the barrier
+    const barrierTop = CY - potential(dtBallX - 60);
+    if (dtBallX > 60 && dtBallX < 60 + 28 && barrierTop < dtY) {
+      // bounce back
+    } else {
+      ballY = dtY;
+    }
+    // D particle
+    ctx.fillStyle = '#4488ff';
+    const grad = ctx.createRadialGradient(dtBallX, ballY, 0, dtBallX, ballY, 10);
+    grad.addColorStop(0, '#88ccffff');
+    grad.addColorStop(1, '#4488ff00');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(dtBallX, ballY, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#4488ff';
+    ctx.beginPath(); ctx.arc(dtBallX, ballY, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = '7px Share Tech Mono';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('D', dtBallX, ballY);
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  // p-B11 particle — bouncing off wall (can't get through if energy too low)
+  const pbSpeed = 0.4;
+  const pbPhase = (t * pbSpeed) % 180;
+  // It approaches then bounces back
+  const pbBallX = pbPhase < 90
+    ? 62 + pbPhase * 1.5
+    : 62 + (180 - pbPhase) * 1.5;
+  const hitWall = 60 + 26;
+
+  const pbBallY = pbY;
+  ctx.fillStyle = '#00ffb2';
+  const grad2 = ctx.createRadialGradient(pbBallX, pbBallY, 0, pbBallX, pbBallY, 12);
+  grad2.addColorStop(0, '#aaffeeee');
+  grad2.addColorStop(1, '#00ffb200');
+  ctx.fillStyle = grad2;
+  ctx.beginPath(); ctx.arc(pbBallX, pbBallY, 12, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#00ffb2';
+  ctx.beginPath(); ctx.arc(pbBallX, pbBallY, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.font = '7px Share Tech Mono';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('p', pbBallX, pbBallY);
+  ctx.textBaseline = 'alphabetic';
+
+  // Bounce flash
+  if (pbPhase > 82 && pbPhase < 92) {
+    const flash = Math.sin((pbPhase - 82) / 10 * Math.PI);
+    ctx.fillStyle = `rgba(255,100,50,${flash * 0.5})`;
+    ctx.beginPath(); ctx.arc(hitWall + 60, pbBallY, 20 * flash, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = `rgba(255,80,80,${flash})`;
+    ctx.font = 'bold 11px Share Tech Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText('跳ね返る！', hitWall + 60, pbBallY - 28);
+  }
+
+  // B11 sitting at center
+  ctx.fillStyle = '#00cc88';
+  const bg = ctx.createRadialGradient(90, CY + 50, 0, 90, CY + 50, 18);
+  bg.addColorStop(0, '#00ffaacc');
+  bg.addColorStop(1, '#00cc8800');
+  ctx.fillStyle = bg;
+  ctx.beginPath(); ctx.arc(90, CY + 50, 18, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#00cc88';
+  ctx.beginPath(); ctx.arc(90, CY + 50, 10, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = '7px Share Tech Mono';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('¹¹B', 90, CY + 50);
+  ctx.textBaseline = 'alphabetic';
+}
+
+/* ══════════════════════════════
+   SCENE 1: Bremsstrahlung
+══════════════════════════════ */
+function drawBremsstrahlung() {
+  const CX = W / 2, CY = H / 2;
+
+  // Title
+  ctx.fillStyle = '#ffffff33';
+  ctx.font = '9px Share Tech Mono';
+  ctx.textAlign = 'center';
+  ctx.fillText('超高温プラズマ内部', CX, 28);
+
+  // Plasma boundary (oval)
+  const pw = 200, ph = 140;
+  const plasmaGrad = ctx.createRadialGradient(CX, CY, 0, CX, CY, pw);
+  plasmaGrad.addColorStop(0, 'rgba(255,150,50,0.15)');
+  plasmaGrad.addColorStop(0.6, 'rgba(255,80,20,0.08)');
+  plasmaGrad.addColorStop(1, 'rgba(255,50,0,0)');
+  ctx.fillStyle = plasmaGrad;
+  ctx.beginPath(); ctx.ellipse(CX, CY, pw, ph, 0, 0, Math.PI * 2); ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255,150,50,0.3)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([5, 4]);
+  ctx.beginPath(); ctx.ellipse(CX, CY, pw, ph, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Moving electrons
+  const NE = 14;
+  for (let i = 0; i < NE; i++) {
+    const seed = i * 137.5;
+    const angle = seed + t * (0.01 + (i % 3) * 0.005);
+    const r = 40 + (i % 4) * 38;
+    const ex = CX + Math.cos(angle) * r * (pw / (pw));
+    const ey = CY + Math.sin(angle) * r * (ph / pw);
+
+    // Electron
+    ctx.fillStyle = '#88aaff';
+    ctx.beginPath(); ctx.arc(ex, ey, 3.5, 0, Math.PI * 2); ctx.fill();
+
+    // X-ray burst every so often
+    const burstPhase = (t * 0.04 + i * 0.7) % 1;
+    if (burstPhase < 0.35) {
+      const len = 80 + 60 * burstPhase;
+      const bAngle = angle + Math.PI * 0.5;
+      const x2 = ex + Math.cos(bAngle) * len;
+      const y2 = ey + Math.sin(bAngle) * len;
+      const alpha = Math.sin(burstPhase / 0.35 * Math.PI) * 0.8;
+
+      ctx.strokeStyle = `rgba(255,255,100,${alpha})`;
+      ctx.lineWidth = 1;
+      // zigzag X-ray
+      ctx.beginPath();
+      const steps = 6;
+      ctx.moveTo(ex, ey);
+      for (let s = 1; s <= steps; s++) {
+        const fx = ex + (x2 - ex) * s / steps;
+        const fy = ey + (y2 - ey) * s / steps;
+        const perp = (s % 2 === 0 ? 1 : -1) * 5;
+        ctx.lineTo(fx + Math.cos(bAngle + Math.PI/2) * perp,
+                   fy + Math.sin(bAngle + Math.PI/2) * perp);
+      }
+      ctx.stroke();
+
+      // X-ray label at tip
+      if (burstPhase > 0.2) {
+        ctx.fillStyle = `rgba(255,255,100,${alpha})`;
+        ctx.font = '8px Share Tech Mono';
+        ctx.textAlign = 'center';
+        ctx.fillText('X線', x2, y2 - 6);
+      }
+    }
+  }
+
+  // Ion (p or B) in center
+  ctx.fillStyle = '#ff8844';
+  const ig = ctx.createRadialGradient(CX, CY, 0, CX, CY, 22);
+  ig.addColorStop(0, '#ffcc88cc');
+  ig.addColorStop(1, '#ff884400');
+  ctx.fillStyle = ig;
+  ctx.beginPath(); ctx.arc(CX, CY, 22, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ff8844';
+  ctx.beginPath(); ctx.arc(CX, CY, 10, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = '8px Share Tech Mono';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('イオン', CX, CY);
+  ctx.textBaseline = 'alphabetic';
+
+  // Energy balance bar
+  const barX = 30, barY = H - 100, barW = W - 60;
+  ctx.fillStyle = '#ffffff11';
+  ctx.fillRect(barX, barY, barW, 22);
+  ctx.strokeStyle = '#ffffff22';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(barX, barY, barW, 22);
+
+  // Fusion gain: small for p-B11
+  const fusionFrac = 0.38;
+  ctx.fillStyle = '#00ffb2';
+  ctx.fillRect(barX, barY, barW * fusionFrac, 22);
+
+  // Bremsstrahlung loss: large
+  const bremsFrac = 0.62;
+  ctx.fillStyle = '#ff3333';
+  ctx.fillRect(barX + barW * fusionFrac, barY, barW * bremsFrac, 22);
+
+  ctx.fillStyle = '#fff';
+  ctx.font = '8px Share Tech Mono';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('核融合ゲイン', barX + barW * fusionFrac / 2, barY + 11);
+  ctx.fillStyle = '#000';
+  ctx.fillText('制動放射ロス ⚠', barX + barW * fusionFrac + barW * bremsFrac / 2, barY + 11);
+  ctx.textBaseline = 'alphabetic';
+
+  ctx.fillStyle = '#ffffff55';
+  ctx.font = '8px Share Tech Mono';
+  ctx.textAlign = 'center';
+  ctx.fillText('エネルギー収支（p-B11の困難な温度域）', CX, barY + 38);
+
+  // pulse glow on loss
+  const pulse = 0.5 + 0.5 * Math.sin(t * 0.08);
+  ctx.fillStyle = `rgba(255,50,50,${pulse * 0.12})`;
+  ctx.fillRect(barX + barW * fusionFrac, barY, barW * bremsFrac, 22);
+}
+
+/* ══════════════════════════════
+   SCENE 2: Tradeoff Trap
+══════════════════════════════ */
+
+// 3 interacting sliders
+const sliders = [
+  { label: '温 度', val: 0.5, color: '#ff5544', unit: '億℃', min: '低', max: '高', id: 0 },
+  { label: '密 度', val: 0.5, color: '#4488ff', unit: 'n/m³', min: '低', max: '高', id: 1 },
+  { label: '閉込め', val: 0.5, color: '#ffcc00', unit: 'τ',    min: '短', max: '長', id: 2 },
+];
+
+let dragging = null;
+let animDir = [1, 1, 1];
+
+function sliderX(idx) { return 60 + idx * 160; }
+function sliderY(val) { return 80 + (1 - val) * 180; }
+
+function drawTradeoff() {
+  const CX = W / 2, CY = H / 2;
+
+  // Auto-oscillate for demo
+  if (dragging === null) {
+    t += 0; // t already incremented
+    sliders[0].val = 0.3 + 0.35 * (0.5 + 0.5 * Math.sin(t * 0.022));
+    // density inversely coupled to stability
+    sliders[1].val = 0.25 + 0.45 * (0.5 + 0.5 * Math.sin(t * 0.017 + 1));
+    // confinement tries to compensate
+    sliders[2].val = 0.2 + 0.4 * (0.5 + 0.5 * Math.sin(t * 0.019 + 2));
+  }
+
+  const T = sliders[0].val;
+  const N = sliders[1].val;
+  const C = sliders[2].val;
+
+  // Compute effects
+  const bremLoss = Math.pow(T, 2.5) * 0.9;         // rises steeply with T
+  const instability = N * (1 - C) * 1.2;           // high density + low confinement
+  const fusion = T * N * C * 0.85;                   // all three needed
+  const net = fusion - bremLoss * 0.5 - instability * 0.3;
+
+  // Draw sliders
+  for (let i = 0; i < sliders.length; i++) {
+    const s = sliders[i];
+    const sx = sliderX(i);
+    const trackTop = 70;
+    const trackBot = 270;
+    const trackH = trackBot - trackTop;
+
+    // Track bg
+    ctx.fillStyle = '#ffffff0a';
+    ctx.fillRect(sx - 8, trackTop, 16, trackH);
+    ctx.strokeStyle = '#ffffff15';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(sx - 8, trackTop, 16, trackH);
+
+    // Filled portion
+    const fillH = s.val * trackH;
+    const grad = ctx.createLinearGradient(sx, trackBot, sx, trackBot - fillH);
+    grad.addColorStop(0, s.color + '44');
+    grad.addColorStop(1, s.color + 'cc');
+    ctx.fillStyle = grad;
+    ctx.fillRect(sx - 8, trackBot - fillH, 16, fillH);
+
+    // Thumb
+    const ty = trackBot - s.val * trackH;
+    ctx.fillStyle = s.color;
+    ctx.shadowColor = s.color;
+    ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.arc(sx, ty, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Label
+    ctx.fillStyle = s.color;
+    ctx.font = '9px Share Tech Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText(s.label, sx, trackBot + 18);
+    ctx.fillStyle = '#ffffff44';
+    ctx.font = '8px Share Tech Mono';
+    ctx.fillText(s.min, sx - 16, trackBot + 4);
+    ctx.fillText(s.max, sx - 16, trackTop + 4);
+  }
+
+  // Coupling arrows between sliders
+  // T↑ → brem↑ (bad)
+  const ax1 = sliderX(0), ay1 = sliderY(T);
+  ctx.strokeStyle = `rgba(255,80,80,${T * 0.8})`;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(ax1 + 14, ay1); ctx.lineTo(sliderX(1) - 14, sliderY(bremLoss)); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // N↑ + C↓ → instability↑ (bad)
+  ctx.strokeStyle = `rgba(255,200,50,${instability * 0.7})`;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(sliderX(1) + 14, sliderY(N)); ctx.lineTo(sliderX(2) - 14, sliderY(C)); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Net score
+  const scoreX = W - 100, scoreY = 130;
+  ctx.fillStyle = '#ffffff11';
+  ctx.beginPath();
+  ctx.roundRect(scoreX - 55, scoreY - 20, 110, 110, 4);
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff22';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.font = '8px Share Tech Mono';
+  ctx.textAlign = 'center';
+
+  const vals = [
+    { label: '核融合出力', val: fusion, color: '#00ffb2' },
+    { label: '制動放射損', val: bremLoss, color: '#ff4444' },
+    { label: '不安定性', val: instability, color: '#ffaa00' },
+  ];
+
+  vals.forEach((v, i) => {
+    ctx.fillStyle = v.color;
+    ctx.fillText(v.label, scoreX, scoreY + i * 24);
+    ctx.fillText((v.val * 100).toFixed(0) + '%', scoreX, scoreY + i * 24 + 13);
+  });
+
+  // NET indicator
+  const netColor = net > 0.15 ? '#00ffb2' : net > 0 ? '#ffcc00' : '#ff3333';
+  const netLabel = net > 0.15 ? '✓ 点火可能!' : net > 0 ? '△ ギリギリ' : '✗ エネルギー不足';
+  ctx.fillStyle = netColor;
+  ctx.font = 'bold 9px Share Tech Mono';
+  ctx.fillText('NET: ' + netLabel, scoreX, scoreY + 85);
+
+  // Sweet spot indicator
+  ctx.fillStyle = '#ffffff22';
+  ctx.font = '8px Share Tech Mono';
+  ctx.textAlign = 'center';
+  ctx.fillText('→ スイートスポットは極めて狭い', CX - 20, H - 20);
+}
+
+/* ══════════════════════════════
+   MAIN LOOP
+══════════════════════════════ */
+function frame() {
+  t++;
+  ctx.fillStyle = '#04040c';
+  ctx.fillRect(0, 0, W, H);
+
+  // grid
+  ctx.strokeStyle = '#ffffff06';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 36) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for (let y = 0; y < H; y += 36) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+  if (scene === 0) drawCoulomb();
+  else if (scene === 1) drawBremsstrahlung();
+  else drawTradeoff();
+
+  animId = requestAnimationFrame(frame);
+}
+
+frame();
+</script>
+</body>
+</html>

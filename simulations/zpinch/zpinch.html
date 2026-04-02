@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Z-Pinch Fusion</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Share Tech Mono', monospace;
+    overflow: hidden;
+  }
+
+  h1 {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: clamp(1.2rem, 4vw, 2rem);
+    letter-spacing: 0.3em;
+    color: #00eaff;
+    text-shadow: 0 0 20px #00eaff, 0 0 60px #00eaff88;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+
+  .subtitle {
+    font-size: 0.75rem;
+    color: #00eaff88;
+    letter-spacing: 0.2em;
+    margin-bottom: 24px;
+  }
+
+  canvas {
+    border: 1px solid #00eaff33;
+    box-shadow: 0 0 40px #00eaff22, inset 0 0 40px #00000088;
+  }
+
+  .labels {
+    display: flex;
+    gap: 40px;
+    margin-top: 18px;
+  }
+
+  .label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    color: #aaa;
+  }
+
+  .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .phase-display {
+    margin-top: 14px;
+    font-size: 0.72rem;
+    color: #00eaff99;
+    letter-spacing: 0.15em;
+    height: 1.2em;
+    text-align: center;
+  }
+
+  .phase-display span { color: #fff; }
+</style>
+</head>
+<body>
+
+<h1>Z-Pinch</h1>
+<div class="subtitle">磁気閉じ込め核融合シミュレーション</div>
+
+<canvas id="c" width="560" height="440"></canvas>
+
+<div class="labels">
+  <div class="label"><div class="dot" style="background:#00eaff"></div>電流 (Z方向)</div>
+  <div class="label"><div class="dot" style="background:#ff4dff"></div>磁場 (θ方向)</div>
+  <div class="label"><div class="dot" style="background:#ffaa00"></div>プラズマ圧縮</div>
+</div>
+<div class="phase-display" id="phase">フェーズ: <span>初期化中...</span></div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const CX = W / 2, CY = H / 2;
+
+let t = 0;
+
+// Plasma particles
+const N_PARTICLES = 180;
+const particles = [];
+for (let i = 0; i < N_PARTICLES; i++) {
+  const angle = Math.random() * Math.PI * 2;
+  const r = 80 + Math.random() * 80;
+  particles.push({
+    angle,
+    r,
+    baseR: r,
+    vAngle: (Math.random() - 0.5) * 0.02,
+    z: (Math.random() - 0.5) * H * 0.55,
+    vz: (Math.random() - 0.5) * 0.5,
+    size: 1 + Math.random() * 2.5,
+    hue: 160 + Math.random() * 60,
+    alpha: 0.5 + Math.random() * 0.5,
+    id: i,
+  });
+}
+
+// Pinch cycle: 0→1 (compress), 1→0 (relax)
+let pinchPhase = 0;
+let pinchDir = 1;
+let pinchT = 0;
+const PINCH_SPEED = 0.007;
+
+const phaseEl = document.getElementById('phase').querySelector('span');
+const phases = ['電流注入中', '磁場形成中', 'ピンチ圧縮中 ⚡', 'フュージョン点火!', '膨張・緩和中'];
+
+function easeInOut(x) {
+  return x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+}
+
+function drawBackground() {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+
+  // Subtle grid
+  ctx.strokeStyle = '#001a2a';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 40) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = 0; y < H; y += 40) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+}
+
+function drawCurrentArrows(pinch) {
+  // Z-axis current arrows (vertical)
+  const nArrows = 12;
+  const innerR = 6 + 10 * (1 - pinch);
+  const alpha = 0.5 + 0.5 * pinch;
+  for (let i = 0; i < nArrows; i++) {
+    const angle = (i / nArrows) * Math.PI * 2 + t * 0.3;
+    const r = (70 + 90 * (1 - pinch)) * 0.5;
+    const x = CX + Math.cos(angle) * r;
+    const len = 18 + pinch * 10;
+    const y0 = CY + H * 0.28;
+    const y1 = CY - H * 0.28;
+
+    ctx.strokeStyle = `rgba(0,234,255,${alpha * 0.7})`;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(x, y0);
+    ctx.lineTo(x, y1);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Arrowhead (upward)
+    const ay = y1 + 10;
+    ctx.fillStyle = `rgba(0,234,255,${alpha})`;
+    ctx.beginPath();
+    ctx.moveTo(x, y1);
+    ctx.lineTo(x - 4, ay);
+    ctx.lineTo(x + 4, ay);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+function drawMagneticField(pinch) {
+  // Circular B-field rings (θ direction)
+  const nRings = 5;
+  for (let i = 0; i < nRings; i++) {
+    const frac = i / nRings;
+    const y = CY - H * 0.22 + (H * 0.44) * frac;
+    const maxR = 70 + 90 * (1 - pinch);
+    const rx = maxR * (0.4 + 0.6 * Math.abs(Math.sin(frac * Math.PI)));
+    const ry = rx * 0.28;
+    const alpha = (0.15 + 0.35 * pinch) * (0.5 + 0.5 * Math.sin(frac * Math.PI));
+
+    // Glow
+    const grd = ctx.createRadialGradient(CX, y, 0, CX, y, rx);
+    grd.addColorStop(0, `rgba(255,77,255,0)`);
+    grd.addColorStop(1, `rgba(255,77,255,0)`);
+
+    ctx.strokeStyle = `rgba(255,77,255,${alpha})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(CX, y, rx, ry, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Arrows on the ring
+    for (let a = 0; a < 4; a++) {
+      const ang = (a / 4) * Math.PI * 2 + t * 0.5 + frac;
+      const px = CX + Math.cos(ang) * rx;
+      const py = y + Math.sin(ang) * ry;
+      const tangX = -Math.sin(ang) * 5;
+      const tangY = Math.cos(ang) * ry / rx * 5;
+      ctx.strokeStyle = `rgba(255,77,255,${alpha * 2})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(px + tangX, py + tangY);
+      ctx.stroke();
+    }
+  }
+}
+
+function drawPinchForce(pinch) {
+  if (pinch < 0.1) return;
+  // Radial inward arrows
+  const n = 16;
+  for (let i = 0; i < n; i++) {
+    const angle = (i / n) * Math.PI * 2;
+    const y = CY + (Math.random() - 0.5) * 0; // fixed
+    const yOff = ((i * 31) % 200 - 100);
+    const outerR = 80 + 70 * (1 - pinch);
+    const innerR = 12 + 10 * (1 - pinch);
+    const ox = CX + Math.cos(angle) * outerR;
+    const oy = CY + yOff * 0.3 + Math.sin(angle) * outerR * 0.25;
+    const ix = CX + Math.cos(angle) * innerR;
+    const iy = CY + yOff * 0.3 + Math.sin(angle) * innerR * 0.25;
+    const alpha = pinch * 0.7;
+
+    ctx.strokeStyle = `rgba(255,170,0,${alpha})`;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(ox, oy);
+    ctx.lineTo(ix, iy);
+    ctx.stroke();
+
+    // Arrowhead
+    const dx = ix - ox, dy = iy - oy;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    const nx = dx / len, ny = dy / len;
+    const px = ix - nx * 8, py = iy - ny * 8;
+    const perp = 3;
+    ctx.fillStyle = `rgba(255,170,0,${alpha})`;
+    ctx.beginPath();
+    ctx.moveTo(ix, iy);
+    ctx.lineTo(px - ny * perp, py + nx * perp);
+    ctx.lineTo(px + ny * perp, py - nx * perp);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+function drawPlasma(pinch) {
+  const compression = 1 - pinch * 0.72;
+  const glow = pinch;
+
+  for (const p of particles) {
+    // Update
+    p.angle += p.vAngle + pinch * 0.012 * (Math.random() - 0.5);
+    p.z += p.vz;
+    if (p.z > H * 0.27) p.vz = -Math.abs(p.vz);
+    if (p.z < -H * 0.27) p.vz = Math.abs(p.vz);
+
+    const curR = p.baseR * compression;
+    const x = CX + Math.cos(p.angle) * curR;
+    const y = CY + p.z * 0.35 + Math.sin(p.angle) * curR * 0.22;
+
+    const bright = 0.5 + 0.5 * glow;
+    const hue = p.hue + glow * 40;
+    const sat = 70 + glow * 30;
+    const lum = 50 + glow * 30;
+    const alpha = p.alpha * (0.4 + 0.6 * bright);
+
+    // Glow halo
+    if (glow > 0.3) {
+      const grad = ctx.createRadialGradient(x, y, 0, x, y, p.size * 4 * glow);
+      grad.addColorStop(0, `hsla(${hue},${sat}%,${lum}%,${alpha * 0.6})`);
+      grad.addColorStop(1, `hsla(${hue},${sat}%,${lum}%,0)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(x, y, p.size * 4 * glow, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Core
+    ctx.fillStyle = `hsla(${hue},${sat}%,${lum}%,${alpha})`;
+    ctx.beginPath();
+    ctx.arc(x, y, p.size * (0.5 + 0.5 * (1 - pinch * 0.5)), 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Central column glow at full pinch
+  if (pinch > 0.6) {
+    const intensity = (pinch - 0.6) / 0.4;
+    const grad = ctx.createRadialGradient(CX, CY, 0, CX, CY, 40 * intensity);
+    grad.addColorStop(0, `rgba(255,255,200,${intensity * 0.9})`);
+    grad.addColorStop(0.3, `rgba(255,200,50,${intensity * 0.5})`);
+    grad.addColorStop(1, `rgba(255,100,0,0)`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(CX, CY, 40 * intensity, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Vertical bright column
+    const colGrad = ctx.createLinearGradient(CX, CY - H * 0.3, CX, CY + H * 0.3);
+    colGrad.addColorStop(0, 'rgba(255,255,255,0)');
+    colGrad.addColorStop(0.5, `rgba(255,220,100,${intensity * 0.6})`);
+    colGrad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = colGrad;
+    const colW = 4 * intensity;
+    ctx.fillRect(CX - colW, CY - H * 0.3, colW * 2, H * 0.6);
+  }
+}
+
+function drawElectrodes() {
+  // Top and bottom electrodes
+  const ew = 180, eh = 12;
+  const topY = CY - H * 0.3;
+  const botY = CY + H * 0.3;
+
+  const grad1 = ctx.createLinearGradient(CX - ew/2, topY, CX + ew/2, topY + eh);
+  grad1.addColorStop(0, '#1a3a4a');
+  grad1.addColorStop(0.5, '#00eaff44');
+  grad1.addColorStop(1, '#1a3a4a');
+
+  ctx.fillStyle = grad1;
+  ctx.strokeStyle = '#00eaff88';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(CX - ew/2, topY - eh/2, ew, eh, 3);
+  ctx.fill(); ctx.stroke();
+
+  const grad2 = ctx.createLinearGradient(CX - ew/2, botY, CX + ew/2, botY + eh);
+  grad2.addColorStop(0, '#1a3a4a');
+  grad2.addColorStop(0.5, '#00eaff44');
+  grad2.addColorStop(1, '#1a3a4a');
+  ctx.fillStyle = grad2;
+  ctx.beginPath();
+  ctx.roundRect(CX - ew/2, botY - eh/2, ew, eh, 3);
+  ctx.fill(); ctx.stroke();
+
+  // Labels
+  ctx.fillStyle = '#00eaffcc';
+  ctx.font = '11px Share Tech Mono';
+  ctx.textAlign = 'center';
+  ctx.fillText('陽極 (+)', CX, topY - eh/2 - 5);
+  ctx.fillText('陰極 (−)', CX, botY + eh/2 + 14);
+}
+
+function drawHUD(pinch) {
+  // Current meter
+  const current = (pinch * 18.5).toFixed(1);
+  const temp = pinch > 0.5 ? (pinch * 120).toFixed(0) + ' MK' : '< 60 MK';
+  ctx.fillStyle = '#00eaff88';
+  ctx.font = '11px Share Tech Mono';
+  ctx.textAlign = 'left';
+  ctx.fillText(`I = ${current} MA`, 12, H - 52);
+  ctx.fillText(`T ≈ ${temp}`, 12, H - 36);
+  ctx.fillText(`β = ${(0.1 + pinch * 0.85).toFixed(2)}`, 12, H - 20);
+
+  ctx.textAlign = 'right';
+  ctx.fillText(`ピンチ率: ${(pinch * 100).toFixed(0)}%`, W - 12, H - 36);
+  ctx.fillText(`t = ${(t * 0.016).toFixed(2)} ms`, W - 12, H - 20);
+}
+
+function updatePhase(pinch, dir) {
+  if (dir > 0) {
+    if (pinch < 0.2) phaseEl.textContent = '電流注入中';
+    else if (pinch < 0.45) phaseEl.textContent = '磁場形成中';
+    else if (pinch < 0.8) phaseEl.textContent = 'ピンチ圧縮中 ⚡';
+    else phaseEl.textContent = 'フュージョン点火! 🔥';
+  } else {
+    phaseEl.textContent = '膨張・緩和中';
+  }
+}
+
+function frame() {
+  t += 0.7;
+
+  // Pinch cycle
+  pinchT += PINCH_SPEED * pinchDir;
+  if (pinchT >= 1) { pinchT = 1; pinchDir = -1; }
+  if (pinchT <= 0) { pinchT = 0; pinchDir = 1; }
+  pinchPhase = easeInOut(pinchT);
+
+  drawBackground();
+  drawMagneticField(pinchPhase);
+  drawCurrentArrows(pinchPhase);
+  drawPinchForce(pinchPhase);
+  drawPlasma(pinchPhase);
+  drawElectrodes();
+  drawHUD(pinchPhase);
+  updatePhase(pinchPhase, pinchDir);
+
+  requestAnimationFrame(frame);
+}
+
+frame();
+</script>
+</body>
+</html>
