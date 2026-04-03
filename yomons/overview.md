@@ -678,31 +678,27 @@ flowchart LR
 **要問解決ヒートマップ:**
 
 ```mermaid
-flowchart TB
+flowchart TD
     subgraph L1 ["L1 物理層"]
         direction LR
-        L1A["L1-1 クーロン障壁 🔴"]
-        L1B["L1-2 制動放射 🔴"]
-        L1C["L1-3 ローソン基準 🟡"]
+        L1A["L1-1 クーロン障壁 🔴"] --> L1B["L1-2 制動放射 🔴"] --> L1C["L1-3 ローソン基準 🟡"]
     end
+
     subgraph L2 ["L2 工学層"]
         direction LR
-        L2A["L2-1 タイミング同期 🟢"]
-        L2B["L2-2 繰返し耐久性 🔴"]
-        L2C["L2-3 ビーム+Zピンチ統合 🟡"]
+        L2A["L2-1 タイミング同期 🟢"] --> L2B["L2-2 繰返し耐久性 🔴"] --> L2C["L2-3 ビーム+Zピンチ統合 🟡"]
     end
+
     subgraph L3 ["L3 材料層"]
         direction LR
-        L3A["L3-1 壁材料劣化 🔴"]
-        L3B["L3-2 プラズマ汚染 🔴"]
-        L3C["L3-3 液体金属壁 🟡"]
+        L3A["L3-1 壁材料劣化 🔴"] --> L3B["L3-2 プラズマ汚染 🔴"] --> L3C["L3-3 液体金属壁 🟡"]
     end
+
     subgraph L4 ["L4 システム層"]
         direction LR
-        L4A["L4-1 直接変換効率 🟡"]
-        L4B["L4-2 エネルギー収支 🔴"]
-        L4C["L4-3 燃料供給 🟢"]
+        L4A["L4-1 直接変換効率 🟡"] --> L4B["L4-2 エネルギー収支 🔴"] --> L4C["L4-3 燃料供給 🟢"]
     end
+
     subgraph L5 ["L5 統合層"]
         L5A["L5 スイートスポット 🔴"]
     end
