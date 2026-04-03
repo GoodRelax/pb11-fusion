@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>核融合燃料の比較 — なぜ p-B11 なのか</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a1a; color: #e0e0e0; font-family: 'Segoe UI', 'Hiragino Sans', sans-serif; }
+h1 { text-align: center; padding: 14px; font-size: 1.3em; color: #88ccff; }
+.subtitle { text-align: center; color: #888; font-size: 0.8em; margin-bottom: 10px; }
+.container { max-width: 880px; margin: 0 auto; padding: 0 12px; }
+.panel {
+  background: #111128; border: 1px solid #333; border-radius: 10px;
+  padding: 10px; margin-bottom: 10px;
+}
+.panel-title { font-size: 0.85em; font-weight: bold; margin-bottom: 6px; color: #88ccff; }
+.panel canvas { width: 100%; display: block; border-radius: 6px; }
+.controls {
+  text-align: center; padding: 6px;
+  display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;
+}
+.controls button {
+  background: #1a1a3a; color: #88ccff; border: 1px solid #444;
+  padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 0.78em;
+}
+.controls button:hover { background: #2a2a5a; }
+.controls button.on { border-color: #ffaa00; color: #ffaa00; }
+.info-box {
+  background: #111128; border: 1px solid #333; border-radius: 8px;
+  padding: 10px; font-size: 0.75em; line-height: 1.6; margin-top: 8px;
+}
+.info-box .label { color: #ffaa00; font-weight: bold; }
+.row { display: flex; gap: 10px; }
+.col { flex: 1; }
+</style>
+</head>
+<body>
+
+<h1>核融合燃料の比較 — なぜ p-B11 なのか</h1>
+<div class="subtitle">中性子ゼロ・燃料豊富・反応がギリギリ起こせる — 消去法で残る唯一の選択肢</div>
+
+<div class="container">
+
+<div class="controls">
+  <button onclick="setView('radar')" class="on" id="btnRadar">5軸レーダー</button>
+  <button onclick="setView('zeff')" id="btnZeff">Z_eff² 比較</button>
+  <button onclick="setView('tradeoff')" id="btnTrade">トレードオフ図</button>
+</div>
+
+<!-- Radar chart -->
+<div class="panel" id="panelRadar">
+  <div class="panel-title">5軸評価: 燃料候補の比較</div>
+  <canvas id="canvasRadar" style="height:380px"></canvas>
+  <div class="controls" style="padding:4px">
+    <button onclick="toggleFuel(0)" class="on" id="fb0" style="color:#ff6644;border-color:#ff6644">D-T</button>
+    <button onclick="toggleFuel(1)" class="on" id="fb1" style="color:#44aaff;border-color:#44aaff">D-³He</button>
+    <button onclick="toggleFuel(2)" id="fb2" style="color:#aa88ff;border-color:#aa88ff55">p-⁶Li</button>
+    <button onclick="toggleFuel(3)" id="fb3" style="color:#88ff44;border-color:#88ff4455">p-⁷Li</button>
+    <button onclick="toggleFuel(4)" class="on" id="fb4" style="color:#ffaa00;border-color:#ffaa00">p-¹¹B</button>
+    <button onclick="toggleFuel(5)" id="fb5" style="color:#ff88cc;border-color:#ff88cc55">³He-³He</button>
+  </div>
+</div>
+
+<!-- Z_eff bar chart -->
+<div class="panel" id="panelZeff" style="display:none">
+  <div class="panel-title">Z_eff² — 制動放射ハンデの比較</div>
+  <canvas id="canvasZeff" style="height:300px"></canvas>
+</div>
+
+<!-- Tradeoff scatter -->
+<div class="panel" id="panelTrade" style="display:none">
+  <div class="panel-title">トレードオフ: 反応のしやすさ vs 制動放射の軽さ</div>
+  <canvas id="canvasTrade" style="height:360px"></canvas>
+</div>
+
+<div class="info-box" id="infoBox">
+  <span class="label">5軸レーダー:</span> 各燃料を5つの観点で評価。外側ほど良い。
+  p-B11（金色）は「中性子ゼロ」「燃料豊富」「直接発電」が満点だが、「制動放射」と「反応のしやすさ」が低い。
+  これが制動放射問題の根本原因。
+</div>
+
+</div>
+
+<script>
+// Canvas setup
+function initC(id, h) {
+  const c = document.getElementById(id);
+  c.width = c.offsetWidth * 2;
+  c.height = h;
+  return { c, ctx: c.getContext('2d') };
+}
+const radar = initC('canvasRadar', 760);
+const zeff = initC('canvasZeff', 600);
+const trade = initC('canvasTrade', 720);
+
+let view = 'radar';
+let fuelVisible = [true, true, false, false, true, false];
+
+// Fuel data: [brem_lightness, reactivity, no_neutrons, fuel_availability, direct_conversion]
+// All normalized 0-1 (1 = best)
+const fuels = [
+  { name: 'D-T',     color: '#ff6644', scores: [1.0, 1.0, 0.05, 0.5, 0.2], zeff2: 1.0, energy: 17.6, reactivity: 1.0, brem: 1.0 },
+  { name: 'D-³He',   color: '#44aaff', scores: [0.75, 0.6, 0.6, 0.05, 0.85], zeff2: 2.8, energy: 18.3, reactivity: 0.6, brem: 0.36 },
+  { name: 'p-⁶Li',   color: '#aa88ff', scores: [0.55, 0.15, 1.0, 0.5, 1.0], zeff2: 6.25, energy: 4.0, reactivity: 0.15, brem: 0.16 },
+  { name: 'p-⁷Li',   color: '#88ff44', scores: [0.55, 0.1, 1.0, 0.8, 1.0], zeff2: 6.25, energy: 17.3, reactivity: 0.1, brem: 0.16 },
+  { name: 'p-¹¹B',   color: '#ffaa00', scores: [0.15, 0.3, 1.0, 0.9, 1.0], zeff2: 18.8, energy: 8.7, reactivity: 0.3, brem: 0.053 },
+  { name: '³He-³He', color: '#ff88cc', scores: [0.65, 0.2, 1.0, 0.02, 1.0], zeff2: 4.0, energy: 12.9, reactivity: 0.2, brem: 0.25 },
+];
+
+const axes = ['制動放射\nの軽さ', '反応の\nしやすさ', '中性子\nゼロ', '燃料の\n入手性', '直接発電\nとの相性'];
+
+function setView(v) {
+  view = v;
+  document.getElementById('btnRadar').classList.toggle('on', v === 'radar');
+  document.getElementById('btnZeff').classList.toggle('on', v === 'zeff');
+  document.getElementById('btnTrade').classList.toggle('on', v === 'tradeoff');
+  document.getElementById('panelRadar').style.display = v === 'radar' ? '' : 'none';
+  document.getElementById('panelZeff').style.display = v === 'zeff' ? '' : 'none';
+  document.getElementById('panelTrade').style.display = v === 'tradeoff' ? '' : 'none';
+
+  // Reinit canvas size after display change
+  requestAnimationFrame(() => {
+    if (v === 'zeff') { zeff.c.width = zeff.c.offsetWidth * 2; zeff.c.height = 600; }
+    if (v === 'tradeoff') { trade.c.width = trade.c.offsetWidth * 2; trade.c.height = 720; }
+    if (v === 'radar') { radar.c.width = radar.c.offsetWidth * 2; radar.c.height = 760; }
+  });
+
+  const infos = {
+    radar: '<span class="label">5軸レーダー:</span> 各燃料を5つの観点で評価。外側ほど良い。p-B11（金色）は「中性子ゼロ」「燃料豊富」「直接発電」が満点だが、「制動放射」と「反応のしやすさ」が低い。',
+    zeff: '<span class="label">Z_eff²:</span> 制動放射パワーは Z_eff² に比例。p-B11 は D-T の 18.8 倍。D-³He なら 2.8 倍で済むが ³He が手に入らない。',
+    tradeoff: '<span class="label">トレードオフ:</span> 横軸が「反応のしやすさ」、縦軸が「制動放射の軽さ」。右上が理想だが、どの燃料も何かを犠牲にしている。p-B11 は左下（反応が難しく制動放射が重い）だが、燃料が手に入り中性子が出ない唯一の選択肢。'
+  };
+  document.getElementById('infoBox').innerHTML = infos[v];
+}
+
+function toggleFuel(i) {
+  fuelVisible[i] = !fuelVisible[i];
+  const btn = document.getElementById('fb' + i);
+  btn.classList.toggle('on', fuelVisible[i]);
+  btn.style.borderColor = fuelVisible[i] ? fuels[i].color : fuels[i].color + '55';
+}
+
+function drawRadar() {
+  const { ctx, c } = radar;
+  const w = c.width, h = c.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#0a0a18';
+  ctx.fillRect(0, 0, w, h);
+
+  const cx = w / 2, cy = h / 2;
+  const R = Math.min(w, h) * 0.36;
+  const n = 5;
+
+  // Grid
+  for (let ring = 0.2; ring <= 1.0; ring += 0.2) {
+    ctx.beginPath();
+    for (let i = 0; i <= n; i++) {
+      const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
+      const x = cx + Math.cos(angle) * R * ring;
+      const y = cy + Math.sin(angle) * R * ring;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // Axes
+  for (let i = 0; i < n; i++) {
+    const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
+    const x = cx + Math.cos(angle) * R * 1.05;
+    const y = cy + Math.sin(angle) * R * 1.05;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(x, y);
+    ctx.strokeStyle = '#444';
+    ctx.stroke();
+
+    // Labels
+    const lx = cx + Math.cos(angle) * R * 1.22;
+    const ly = cy + Math.sin(angle) * R * 1.22;
+    ctx.font = '13px sans-serif';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const lines = axes[i].split('\n');
+    lines.forEach((line, li) => {
+      ctx.fillText(line, lx, ly + (li - (lines.length - 1) / 2) * 16);
+    });
+  }
+
+  // Fuel polygons
+  fuels.forEach((fuel, fi) => {
+    if (!fuelVisible[fi]) return;
+
+    ctx.beginPath();
+    for (let i = 0; i <= n; i++) {
+      const idx = i % n;
+      const angle = (Math.PI * 2 * idx) / n - Math.PI / 2;
+      const val = fuel.scores[idx];
+      const x = cx + Math.cos(angle) * R * val;
+      const y = cy + Math.sin(angle) * R * val;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.fillStyle = fuel.color + '20';
+    ctx.fill();
+    ctx.strokeStyle = fuel.color;
+    ctx.lineWidth = fi === 4 ? 3 : 2; // Highlight p-B11
+    ctx.stroke();
+
+    // Dots
+    for (let i = 0; i < n; i++) {
+      const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
+      const val = fuel.scores[i];
+      const x = cx + Math.cos(angle) * R * val;
+      const y = cy + Math.sin(angle) * R * val;
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = fuel.color;
+      ctx.fill();
+    }
+  });
+
+  // Legend
+  let ly = 20;
+  fuels.forEach((fuel, fi) => {
+    if (!fuelVisible[fi]) return;
+    ctx.font = fi === 4 ? 'bold 13px sans-serif' : '13px sans-serif';
+    ctx.fillStyle = fuel.color;
+    ctx.textAlign = 'left';
+    ctx.fillText('━ ' + fuel.name + (fi === 4 ? ' ← 今のプロジェクト' : ''), 20, ly);
+    ly += 18;
+  });
+}
+
+function drawZeffBars() {
+  const { ctx, c } = zeff;
+  const w = c.width, h = c.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#0a0a18';
+  ctx.fillRect(0, 0, w, h);
+
+  const margin = { l: 120, r: 40, t: 30, b: 50 };
+  const pw = w - margin.l - margin.r;
+  const ph = h - margin.t - margin.b;
+
+  const sorted = [...fuels].sort((a, b) => a.zeff2 - b.zeff2);
+  const barH = ph / sorted.length * 0.7;
+  const gap = ph / sorted.length;
+  const maxZ = 20;
+
+  sorted.forEach((fuel, i) => {
+    const y = margin.t + i * gap + (gap - barH) / 2;
+    const barW = (fuel.zeff2 / maxZ) * pw;
+
+    // Bar
+    ctx.fillStyle = fuel.color + '44';
+    ctx.fillRect(margin.l, y, barW, barH);
+    ctx.strokeStyle = fuel.color;
+    ctx.lineWidth = fuel.name === 'p-¹¹B' ? 3 : 1.5;
+    ctx.strokeRect(margin.l, y, barW, barH);
+
+    // Label
+    ctx.font = fuel.name === 'p-¹¹B' ? 'bold 14px sans-serif' : '13px sans-serif';
+    ctx.fillStyle = fuel.color;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(fuel.name, margin.l - 10, y + barH / 2);
+
+    // Value
+    ctx.textAlign = 'left';
+    ctx.fillText('Z²=' + fuel.zeff2.toFixed(1), margin.l + barW + 8, y + barH / 2);
+  });
+
+  // X axis
+  ctx.strokeStyle = '#444';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(margin.l, margin.t + ph);
+  ctx.lineTo(margin.l + pw, margin.t + ph);
+  ctx.stroke();
+
+  for (let v = 0; v <= maxZ; v += 5) {
+    const x = margin.l + (v / maxZ) * pw;
+    ctx.beginPath();
+    ctx.moveTo(x, margin.t + ph);
+    ctx.lineTo(x, margin.t + ph + 5);
+    ctx.stroke();
+    ctx.font = '11px sans-serif';
+    ctx.fillStyle = '#666';
+    ctx.textAlign = 'center';
+    ctx.fillText(v, x, margin.t + ph + 20);
+  }
+
+  ctx.fillStyle = '#888';
+  ctx.textAlign = 'center';
+  ctx.fillText('Z_eff²（大きいほど制動放射が重い）', margin.l + pw / 2, h - 8);
+}
+
+function drawTradeoff() {
+  const { ctx, c } = trade;
+  const w = c.width, h = c.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#0a0a18';
+  ctx.fillRect(0, 0, w, h);
+
+  const margin = { l: 70, r: 60, t: 40, b: 50 };
+  const pw = w - margin.l - margin.r;
+  const ph = h - margin.t - margin.b;
+
+  // Axes
+  ctx.strokeStyle = '#444';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(margin.l, margin.t);
+  ctx.lineTo(margin.l, margin.t + ph);
+  ctx.lineTo(margin.l + pw, margin.t + ph);
+  ctx.stroke();
+
+  ctx.font = '13px sans-serif';
+  ctx.fillStyle = '#888';
+  ctx.textAlign = 'center';
+  ctx.fillText('反応のしやすさ →', margin.l + pw / 2, h - 8);
+  ctx.save();
+  ctx.translate(18, margin.t + ph / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('制動放射の軽さ →', 0, 0);
+  ctx.restore();
+
+  // Ideal zone
+  ctx.fillStyle = 'rgba(68,255,136,0.05)';
+  ctx.fillRect(margin.l + pw * 0.5, margin.t, pw * 0.5, ph * 0.5);
+  ctx.font = '12px sans-serif';
+  ctx.fillStyle = 'rgba(68,255,136,0.2)';
+  ctx.textAlign = 'center';
+  ctx.fillText('理想ゾーン', margin.l + pw * 0.75, margin.t + 20);
+
+  // Plot fuels
+  fuels.forEach((fuel, fi) => {
+    const x = margin.l + fuel.reactivity * pw;
+    const y = margin.t + ph - fuel.brem * ph;
+    const r = Math.sqrt(fuel.energy) * 6;
+
+    // Circle (size = energy)
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = fuel.color + '33';
+    ctx.fill();
+    ctx.strokeStyle = fuel.color;
+    ctx.lineWidth = fi === 4 ? 3 : 1.5;
+    ctx.stroke();
+
+    // Label
+    ctx.font = fi === 4 ? 'bold 13px sans-serif' : '12px sans-serif';
+    ctx.fillStyle = fuel.color;
+    ctx.textAlign = 'center';
+    ctx.fillText(fuel.name, x, y - r - 8);
+
+    // Energy label
+    ctx.font = '10px sans-serif';
+    ctx.fillStyle = fuel.color + 'aa';
+    ctx.fillText(fuel.energy + ' MeV', x, y + r + 14);
+
+    // Neutron/fuel icons
+    const icons = [];
+    if (fuel.scores[2] >= 1.0) icons.push('中性子0');
+    if (fuel.scores[3] < 0.1) icons.push('燃料✕');
+    if (fuel.scores[3] >= 0.8) icons.push('燃料◎');
+    if (icons.length > 0) {
+      ctx.font = '9px sans-serif';
+      ctx.fillStyle = '#aaa';
+      ctx.fillText(icons.join(' / '), x, y + r + 26);
+    }
+  });
+
+  // Annotation for p-B11
+  const pb11 = fuels[4];
+  const px = margin.l + pb11.reactivity * pw;
+  const py = margin.t + ph - pb11.brem * ph;
+  ctx.setLineDash([3, 3]);
+  ctx.strokeStyle = '#ffaa0044';
+  ctx.beginPath();
+  ctx.moveTo(px + 40, py - 30);
+  ctx.lineTo(px + 120, py - 80);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.font = '11px sans-serif';
+  ctx.fillStyle = '#ffaa00';
+  ctx.textAlign = 'left';
+  ctx.fillText('消去法で残る', px + 122, py - 85);
+  ctx.fillText('唯一の現実解', px + 122, py - 70);
+
+  // Size legend
+  ctx.font = '10px sans-serif';
+  ctx.fillStyle = '#666';
+  ctx.textAlign = 'left';
+  ctx.fillText('円の大きさ = 反応エネルギー (MeV)', margin.l + 5, margin.t + 15);
+}
+
+function render() {
+  if (view === 'radar') drawRadar();
+  else if (view === 'zeff') drawZeffBars();
+  else drawTradeoff();
+  requestAnimationFrame(render);
+}
+
+window.addEventListener('resize', () => {
+  initC('canvasRadar', 760);
+  initC('canvasZeff', 600);
+  initC('canvasTrade', 720);
+});
+
+requestAnimationFrame(render);
+</script>
+</body>
+</html>

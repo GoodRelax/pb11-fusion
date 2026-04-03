@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>制動放射 — なぜ回収できないのか</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a1a; color: #e0e0e0; font-family: 'Segoe UI', 'Hiragino Sans', sans-serif; }
+h1 { text-align: center; padding: 14px; font-size: 1.3em; color: #88ccff; }
+.subtitle { text-align: center; color: #888; font-size: 0.8em; margin-bottom: 8px; }
+.container { max-width: 860px; margin: 0 auto; padding: 0 12px; }
+.panel {
+  background: #111128; border: 1px solid #333; border-radius: 10px;
+  padding: 10px; margin-bottom: 10px;
+}
+.panel-title { font-size: 0.85em; font-weight: bold; margin-bottom: 6px; color: #88ccff; }
+.panel canvas { width: 100%; display: block; border-radius: 6px; }
+.controls {
+  text-align: center; padding: 8px;
+  display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;
+}
+.controls button {
+  background: #1a1a3a; color: #88ccff; border: 1px solid #444;
+  padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 0.78em;
+}
+.controls button:hover { background: #2a2a5a; }
+.controls button.on { border-color: #ffaa00; color: #ffaa00; }
+.legend {
+  display: flex; justify-content: center; gap: 14px; padding: 5px; font-size: 0.7em; color: #aaa;
+}
+.legend-item { display: flex; align-items: center; gap: 4px; }
+.legend-dot { width: 9px; height: 9px; border-radius: 50%; }
+.info-box {
+  background: #111128; border: 1px solid #333; border-radius: 8px;
+  padding: 10px; font-size: 0.75em; line-height: 1.6; margin-top: 8px;
+}
+.info-box .label { color: #ffaa00; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>制動放射（Bremsstrahlung）</h1>
+<div class="subtitle">電子が曲がるとX線が出てエネルギーが逃げる — そしてそれは回収できない</div>
+
+<div class="container">
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#4488ff"></div> 電子 e⁻</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ff6644"></div> イオン（p⁺ / B⁵⁺）</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ffee44"></div> X線（制動放射）</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#666"></div> 壁</div>
+</div>
+
+<div class="controls">
+  <button onclick="setScene('emit')" class="on" id="btnEmit">制動放射の発生</button>
+  <button onclick="setScene('reflect')" id="btnReflect">方法1: 反射して戻す</button>
+  <button onclick="setScene('absorb')" id="btnAbsorb">方法2: 自己吸収</button>
+  <button onclick="setScene('thermal')" id="btnThermal">方法3: 壁で熱回収</button>
+  <button onclick="togglePause()" id="btnPause">一時停止</button>
+</div>
+
+<div class="panel">
+  <div class="panel-title" id="mainTitle">制動放射の発生メカニズム</div>
+  <canvas id="canvasMain" style="height:400px"></canvas>
+</div>
+
+<div class="info-box" id="infoBox">
+  <span class="label">制動放射:</span> 電子(青)がイオン(赤)の近くを通ると、クーロン力で軌道が曲がり、X線(黄)を放出してエネルギーを失う。自転車がカーブでブレーキ音を出すのと同じ原理。
+</div>
+
+</div>
+
+<script>
+const canvas = document.getElementById('canvasMain');
+const ctx = canvas.getContext('2d');
+let W, H;
+function resize() {
+  W = canvas.offsetWidth * 2;
+  H = 800;
+  canvas.width = W;
+  canvas.height = H;
+}
+resize();
+window.addEventListener('resize', resize);
+
+let scene = 'emit';
+let paused = false;
+let time = 0;
+
+const infos = {
+  emit: '<span class="label">制動放射の発生:</span> 電子(青)がイオン(赤)の近くを通ると軌道が曲がり、X線(黄色の波)を放出。イオンの電荷が大きいほど(B⁵⁺)、電子を強く曲げるので放射が増える。p-B11 では Z_eff²=18.8 で D-T の 18.8 倍。',
+  reflect: '<span class="label">方法1 反射して戻す ✗:</span> X線を壁で反射してプラズマに戻す発想。しかしX線は反射できない（波長が短すぎる）。仮に戻しても電子が吸収して Te が上がり、制動放射がさらに増える悪循環。',
+  absorb: '<span class="label">方法2 自己吸収 ✗:</span> プラズマ密度を上げてX線を外に出さない発想。しかし核融合プラズマはX線に対して透明（光学的に薄い）。X線は素通りする。しかも再吸収するのは電子 → Te 上昇。',
+  thermal: '<span class="label">方法3 壁で熱回収 △:</span> X線で壁を加熱し蒸気タービンで発電。これは可能だが効率~40%（カルノー限界）。直接発電(60-90%)の優位が消え、D-T+タービンと同じ構成に。p-B11を選ぶ意味が薄れる。'
+};
+
+function setScene(s) {
+  scene = s;
+  ['btnEmit','btnReflect','btnAbsorb','btnThermal'].forEach(id => document.getElementById(id).classList.remove('on'));
+  const map = { emit: 'btnEmit', reflect: 'btnReflect', absorb: 'btnAbsorb', thermal: 'btnThermal' };
+  document.getElementById(map[s]).classList.add('on');
+  document.getElementById('infoBox').innerHTML = infos[s];
+  const titles = {
+    emit: '制動放射の発生メカニズム',
+    reflect: '方法1: X線を反射して戻す → ✗ 悪循環',
+    absorb: '方法2: プラズマで自己吸収 → ✗ 透明すぎる',
+    thermal: '方法3: 壁で熱回収 → △ 効率40%'
+  };
+  document.getElementById('mainTitle').textContent = titles[s];
+  photons.length = 0;
+}
+function togglePause() {
+  paused = !paused;
+  const b = document.getElementById('btnPause');
+  b.textContent = paused ? '再生' : '一時停止';
+  b.classList.toggle('on', paused);
+}
+
+// Ions (fixed positions)
+const ions = [
+  { x: 0.35, y: 0.4, z: 5, label: 'B⁵⁺', color: '#ff44ff' },
+  { x: 0.65, y: 0.55, z: 1, label: 'p⁺', color: '#ff6644' },
+  { x: 0.5, y: 0.7, z: 5, label: 'B⁵⁺', color: '#ff44ff' },
+  { x: 0.25, y: 0.65, z: 1, label: 'p⁺', color: '#ff6644' },
+  { x: 0.75, y: 0.35, z: 5, label: 'B⁵⁺', color: '#ff44ff' },
+];
+
+// Electrons (moving)
+const electrons = [];
+for (let i = 0; i < 12; i++) {
+  electrons.push({
+    x: Math.random(), y: Math.random(),
+    vx: (Math.random() - 0.5) * 0.008,
+    vy: (Math.random() - 0.5) * 0.008,
+    trail: [],
+  });
+}
+
+// Photons (X-rays emitted)
+const photons = [];
+
+function emitPhoton(x, y) {
+  const angle = Math.random() * Math.PI * 2;
+  const speed = 0.012;
+  photons.push({
+    x, y,
+    vx: Math.cos(angle) * speed,
+    vy: Math.sin(angle) * speed,
+    life: 1.0,
+    reflected: false,
+    absorbed: false,
+    hitWall: false,
+  });
+}
+
+function updateElectrons() {
+  electrons.forEach(e => {
+    // Coulomb deflection near ions
+    ions.forEach(ion => {
+      const dx = ion.x - e.x;
+      const dy = ion.y - e.y;
+      const r2 = dx * dx + dy * dy;
+      const r = Math.sqrt(r2);
+      if (r < 0.005) return;
+      const force = ion.z * 0.000008 / Math.max(r2, 0.001);
+      e.vx += dx / r * force;
+      e.vy += dy / r * force;
+
+      // Emit photon when close to ion (deflection = radiation)
+      if (r < 0.08 && Math.random() < 0.03) {
+        emitPhoton(e.x, e.y);
+      }
+    });
+
+    // Random jitter
+    e.vx += (Math.random() - 0.5) * 0.0005;
+    e.vy += (Math.random() - 0.5) * 0.0005;
+
+    // Speed limit
+    const spd = Math.sqrt(e.vx * e.vx + e.vy * e.vy);
+    if (spd > 0.012) { e.vx *= 0.012 / spd; e.vy *= 0.012 / spd; }
+
+    // Damping
+    e.vx *= 0.998;
+    e.vy *= 0.998;
+
+    e.x += e.vx;
+    e.y += e.vy;
+
+    // Bounce off walls (with margin for wall display)
+    const margin = 0.08;
+    if (e.x < margin) { e.vx = Math.abs(e.vx); e.x = margin; }
+    if (e.x > 1 - margin) { e.vx = -Math.abs(e.vx); e.x = 1 - margin; }
+    if (e.y < margin) { e.vy = Math.abs(e.vy); e.y = margin; }
+    if (e.y > 1 - margin) { e.vy = -Math.abs(e.vy); e.y = 1 - margin; }
+
+    // Trail
+    e.trail.push({ x: e.x, y: e.y });
+    if (e.trail.length > 30) e.trail.shift();
+  });
+}
+
+function updatePhotons() {
+  const wallMargin = 0.06;
+
+  for (let i = photons.length - 1; i >= 0; i--) {
+    const p = photons[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life -= 0.008;
+
+    // Scene-specific behavior
+    if (scene === 'reflect') {
+      // Reflect off walls
+      if (!p.reflected && (p.x < wallMargin || p.x > 1 - wallMargin || p.y < wallMargin || p.y > 1 - wallMargin)) {
+        if (p.x < wallMargin || p.x > 1 - wallMargin) p.vx *= -1;
+        if (p.y < wallMargin || p.y > 1 - wallMargin) p.vy *= -1;
+        p.reflected = true;
+        p.life = 0.7; // partial reflection
+        // After reflecting, find nearest electron and heat it
+      }
+      // If reflected and near an electron, get absorbed (heating electron)
+      if (p.reflected) {
+        electrons.forEach(e => {
+          const dx = e.x - p.x;
+          const dy = e.y - p.y;
+          if (Math.sqrt(dx*dx + dy*dy) < 0.04) {
+            p.absorbed = true;
+            p.life = 0;
+            // Speed up electron (Te increases)
+            e.vx *= 1.15;
+            e.vy *= 1.15;
+          }
+        });
+      }
+    } else if (scene === 'absorb') {
+      // X-rays pass right through (optically thin)
+      // Just fly straight out - very little interaction
+    } else if (scene === 'thermal') {
+      // Hit wall and stop
+      if (!p.hitWall && (p.x < wallMargin || p.x > 1 - wallMargin || p.y < wallMargin || p.y > 1 - wallMargin)) {
+        p.hitWall = true;
+        p.vx = 0;
+        p.vy = 0;
+        p.life = 0.5;
+      }
+    }
+
+    if (p.life <= 0 || p.x < -0.1 || p.x > 1.1 || p.y < -0.1 || p.y > 1.1) {
+      photons.splice(i, 1);
+    }
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#08081a';
+  ctx.fillRect(0, 0, W, H);
+
+  const margin = 50;
+  const pw = W - margin * 2;
+  const ph = H - margin * 2;
+
+  function tx(nx) { return margin + nx * pw; }
+  function ty(ny) { return margin + ny * ph; }
+
+  // Draw walls
+  const wallW = pw * 0.06;
+  const wallColor = scene === 'thermal' ? '#554422' : (scene === 'reflect' ? '#335' : '#222');
+
+  ctx.fillStyle = wallColor;
+  ctx.fillRect(margin - wallW, margin - wallW, pw + wallW * 2, wallW); // top
+  ctx.fillRect(margin - wallW, margin + ph, pw + wallW * 2, wallW); // bottom
+  ctx.fillRect(margin - wallW, margin, wallW, ph); // left
+  ctx.fillRect(margin + pw, margin, wallW, ph); // right
+
+  // Wall labels for scenes
+  if (scene === 'reflect') {
+    ctx.font = '13px sans-serif';
+    ctx.fillStyle = '#668';
+    ctx.textAlign = 'center';
+    ctx.fillText('反射壁（理想）', W / 2, margin - wallW - 5);
+  }
+  if (scene === 'thermal') {
+    ctx.font = '13px sans-serif';
+    ctx.fillStyle = '#aa8844';
+    ctx.textAlign = 'center';
+    ctx.fillText('加熱される壁 → タービン(効率~40%)', W / 2, margin - wallW - 5);
+
+    // Heat glow on walls where photons hit
+    photons.forEach(p => {
+      if (p.hitWall) {
+        const grd = ctx.createRadialGradient(tx(p.x), ty(p.y), 0, tx(p.x), ty(p.y), 30);
+        grd.addColorStop(0, `rgba(255,150,50,${p.life * 0.5})`);
+        grd.addColorStop(1, 'rgba(255,150,50,0)');
+        ctx.beginPath();
+        ctx.arc(tx(p.x), ty(p.y), 30, 0, Math.PI * 2);
+        ctx.fillStyle = grd;
+        ctx.fill();
+      }
+    });
+  }
+
+  // Draw ions
+  ions.forEach(ion => {
+    const px = tx(ion.x), py = ty(ion.y);
+    const r = ion.z === 5 ? 18 : 12;
+
+    // Coulomb field visualization
+    const fieldR = ion.z === 5 ? 80 : 45;
+    const grd = ctx.createRadialGradient(px, py, r, px, py, fieldR);
+    grd.addColorStop(0, ion.color + '15');
+    grd.addColorStop(1, 'transparent');
+    ctx.beginPath();
+    ctx.arc(px, py, fieldR, 0, Math.PI * 2);
+    ctx.fillStyle = grd;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(px, py, r, 0, Math.PI * 2);
+    ctx.fillStyle = ion.color;
+    ctx.fill();
+
+    ctx.font = `bold ${r < 15 ? 10 : 12}px sans-serif`;
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(ion.label, px, py);
+  });
+
+  // Draw electron trails
+  electrons.forEach(e => {
+    if (e.trail.length < 2) return;
+    ctx.beginPath();
+    for (let i = 0; i < e.trail.length; i++) {
+      const t = e.trail[i];
+      const alpha = i / e.trail.length * 0.4;
+      if (i === 0) ctx.moveTo(tx(t.x), ty(t.y));
+      else ctx.lineTo(tx(t.x), ty(t.y));
+    }
+    ctx.strokeStyle = 'rgba(68,136,255,0.25)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  });
+
+  // Draw electrons
+  electrons.forEach(e => {
+    const px = tx(e.x), py = ty(e.y);
+    ctx.beginPath();
+    ctx.arc(px, py, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#4488ff';
+    ctx.fill();
+  });
+
+  // Draw photons (X-rays) as wavy lines
+  photons.forEach(p => {
+    const px = tx(p.x), py = ty(p.y);
+    const alpha = Math.max(0, p.life);
+
+    // Wavy line showing propagation direction
+    const angle = Math.atan2(p.vy, p.vx);
+    const len = 20;
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(angle);
+
+    ctx.beginPath();
+    for (let i = 0; i < len; i++) {
+      const wx = i - len / 2;
+      const wy = Math.sin(i * 1.2 + time * 15) * 3;
+      i === 0 ? ctx.moveTo(wx, wy) : ctx.lineTo(wx, wy);
+    }
+
+    let photonColor = `rgba(255,238,68,${alpha})`;
+    if (p.reflected) photonColor = `rgba(255,100,100,${alpha})`; // red after reflection
+    if (p.hitWall) photonColor = `rgba(255,150,50,${alpha})`;
+
+    ctx.strokeStyle = photonColor;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Glow
+    ctx.beginPath();
+    ctx.arc(0, 0, 8, 0, Math.PI * 2);
+    ctx.fillStyle = photonColor.replace(/[\d.]+\)$/, (alpha * 0.3) + ')');
+    ctx.fill();
+
+    ctx.restore();
+  });
+
+  // Scene-specific overlays
+  if (scene === 'reflect' && photons.some(p => p.reflected)) {
+    ctx.font = 'bold 16px sans-serif';
+    ctx.fillStyle = '#ff4444';
+    ctx.textAlign = 'center';
+    ctx.fillText('反射X線 → 電子が吸収 → Te上昇 → 悪循環！', W / 2, H - 25);
+  }
+
+  if (scene === 'absorb') {
+    ctx.font = '14px sans-serif';
+    ctx.fillStyle = '#888';
+    ctx.textAlign = 'center';
+    ctx.fillText('X線はプラズマを素通り（光学的に薄い）', W / 2, H - 25);
+  }
+
+  if (scene === 'emit') {
+    // Show deflection annotation
+    ctx.font = '12px sans-serif';
+    ctx.fillStyle = '#ffee4488';
+    ctx.textAlign = 'center';
+    ctx.fillText('電子がイオンの近くで曲がる → X線放出', W / 2, H - 25);
+  }
+}
+
+function animate() {
+  if (!paused) {
+    time += 0.016;
+    updateElectrons();
+    updatePhotons();
+  }
+  draw();
+  requestAnimationFrame(animate);
+}
+
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

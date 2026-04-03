@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>電子排出メカニズム — 線の段階で電子を捨てる</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0a0a1a;
+  color: #e0e0e0;
+  font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
+  overflow-x: hidden;
+}
+h1 { text-align: center; padding: 16px; font-size: 1.3em; color: #88ccff; }
+.subtitle { text-align: center; color: #888; font-size: 0.8em; margin-bottom: 10px; }
+.main-canvas-wrap {
+  max-width: 800px; margin: 0 auto; padding: 0 12px;
+}
+canvas#main { width: 100%; height: 420px; display: block; border-radius: 10px; background: #08081a; }
+.controls {
+  text-align: center; padding: 10px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;
+}
+.controls button {
+  background: #1a1a3a; color: #88ccff; border: 1px solid #444;
+  padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 0.8em;
+}
+.controls button:hover { background: #2a2a5a; }
+.controls button.on { border-color: #ffaa00; color: #ffaa00; background: #2a2a1a; }
+.phase-bar {
+  max-width: 800px; margin: 6px auto; padding: 0 12px;
+  display: flex; gap: 2px; height: 28px;
+}
+.phase-seg {
+  flex: 1; border-radius: 4px; display: flex; align-items: center;
+  justify-content: center; font-size: 0.65em; color: #aaa;
+  background: #151530; border: 1px solid #222;
+  transition: background 0.3s, color 0.3s;
+}
+.phase-seg.active { background: #2a2a10; border-color: #ffaa00; color: #ffaa00; font-weight: bold; }
+.phase-seg.done { background: #1a2a1a; border-color: #448844; color: #88aa88; }
+.info-panel {
+  max-width: 800px; margin: 8px auto; padding: 0 12px;
+}
+.info-box {
+  background: #111128; border: 1px solid #333; border-radius: 8px;
+  padding: 10px 14px; font-size: 0.78em; line-height: 1.6; min-height: 60px;
+}
+.info-box .label { color: #ffaa00; font-weight: bold; }
+.legend {
+  display: flex; justify-content: center; gap: 18px; padding: 6px; font-size: 0.72em; color: #aaa;
+}
+.legend-item { display: flex; align-items: center; gap: 5px; }
+.legend-dot { width: 9px; height: 9px; border-radius: 50%; }
+.meter-row {
+  max-width: 800px; margin: 6px auto; padding: 0 12px;
+  display: flex; gap: 12px;
+}
+.meter {
+  flex: 1; background: #111128; border: 1px solid #333; border-radius: 6px; padding: 6px 10px;
+  font-size: 0.72em;
+}
+.meter-label { color: #888; margin-bottom: 3px; }
+.meter-bar-bg { background: #1a1a2a; height: 8px; border-radius: 4px; overflow: hidden; }
+.meter-bar { height: 100%; border-radius: 4px; transition: width 0.3s; }
+.meter-val { text-align: right; font-size: 0.9em; margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<h1>電子排出メカニズム — 線の段階で電子を捨てる</h1>
+<div class="subtitle">ルートC（体→線→点）の固有機能: 端を開けて電子だけ流出させる</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#ff6644"></div> イオン（p⁺, B⁵⁺）</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#4488ff"></div> 電子</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#44ff88"></div> 磁力線</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ffaa00"></div> 端電極 (+)</div>
+</div>
+
+<div class="phase-bar" id="phaseBar">
+  <div class="phase-seg" id="seg0">Phase 1<br>集束</div>
+  <div class="phase-seg" id="seg1">Phase 2a<br>円筒圧縮</div>
+  <div class="phase-seg" id="seg2" style="border-color:#ffaa00aa">Phase 2b<br>電子排出 ★</div>
+  <div class="phase-seg" id="seg3">Phase 2c<br>軸圧縮</div>
+  <div class="phase-seg" id="seg4">Phase 3<br>燃焼</div>
+  <div class="phase-seg" id="seg5">Phase 4<br>排気</div>
+</div>
+
+<div class="main-canvas-wrap">
+  <canvas id="main"></canvas>
+</div>
+
+<div class="meter-row">
+  <div class="meter">
+    <div class="meter-label">電子密度 n_e（相対値）</div>
+    <div class="meter-bar-bg"><div class="meter-bar" id="meterNe" style="width:100%; background:#4488ff"></div></div>
+    <div class="meter-val" id="valNe" style="color:#4488ff">100%</div>
+  </div>
+  <div class="meter">
+    <div class="meter-label">制動放射 P_brem（∝ n_e²）</div>
+    <div class="meter-bar-bg"><div class="meter-bar" id="meterBrem" style="width:100%; background:#ff4444"></div></div>
+    <div class="meter-val" id="valBrem" style="color:#ff4444">100%</div>
+  </div>
+  <div class="meter">
+    <div class="meter-label">P_fusion / P_brem</div>
+    <div class="meter-bar-bg"><div class="meter-bar" id="meterRatio" style="width:2.2%; background:#44ff88"></div></div>
+    <div class="meter-val" id="valRatio" style="color:#44ff88">0.22</div>
+  </div>
+</div>
+
+<div class="controls">
+  <button onclick="setSpeed(0.4)">遅い</button>
+  <button onclick="setSpeed(1)" class="on" id="btnNorm">普通</button>
+  <button onclick="setSpeed(2.5)">速い</button>
+  <button onclick="togglePause()" id="btnPause">一時停止</button>
+  <button onclick="toggleMethod()" id="btnMethod">方法: 端開放 + 正電位電極</button>
+</div>
+
+<div class="info-panel">
+  <div class="info-box" id="infoBox">
+    <span class="label">初期状態:</span> プラズマが炉内に存在。電子とイオンが混在。
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('main');
+const ctx = canvas.getContext('2d');
+let W, H;
+function resize() {
+  W = canvas.offsetWidth * 2;
+  H = 840;
+  canvas.width = W;
+  canvas.height = H;
+}
+resize();
+window.addEventListener('resize', resize);
+
+let speed = 1, paused = false, time = 0;
+let methodIdx = 0;
+const methods = ['端開放 + 正電位電極', '端開放のみ', 'ECR加熱排出'];
+
+function setSpeed(s) {
+  speed = s;
+  document.querySelectorAll('.controls button').forEach(b => b.classList.remove('on'));
+  if (s === 0.4) document.querySelectorAll('.controls button')[0].classList.add('on');
+  if (s === 1) document.getElementById('btnNorm').classList.add('on');
+  if (s === 2.5) document.querySelectorAll('.controls button')[2].classList.add('on');
+}
+function togglePause() {
+  paused = !paused;
+  const b = document.getElementById('btnPause');
+  b.textContent = paused ? '再生' : '一時停止';
+  b.classList.toggle('on', paused);
+}
+function toggleMethod() {
+  methodIdx = (methodIdx + 1) % methods.length;
+  document.getElementById('btnMethod').textContent = '方法: ' + methods[methodIdx];
+}
+
+// Phases: durations in seconds (animation time)
+const phases = [
+  { name: 'Phase 1: 電子ビーム集束', dur: 2.5 },
+  { name: 'Phase 2a: Zピンチ円筒圧縮（体→線）', dur: 2.5 },
+  { name: 'Phase 2b: 電子排出 ★', dur: 3.5 },
+  { name: 'Phase 2c: 軸方向圧縮（線→点）', dur: 2.0 },
+  { name: 'Phase 3: 核融合燃焼', dur: 1.5 },
+  { name: 'Phase 4: 排気・リセット', dur: 2.0 },
+];
+const totalDur = phases.reduce((s, p) => s + p.dur, 0);
+
+const infoTexts = [
+  '<span class="label">Phase 1 集束:</span> 電子ビームでイオンを中心に集める。電子(青)とイオン(赤)が混在。',
+  '<span class="label">Phase 2a 円筒圧縮:</span> Zピンチで半径方向に圧縮 → 線状プラズマに。磁力線(緑)が軸方向に整列。',
+  '<span class="label">Phase 2b 電子排出 ★:</span> 端を開けて電子を排出！ 電子(速い, ~1ns)は端から脱出、イオン(遅い, ~100ns)は残留。<br>n_e が激減 → 制動放射 P_brem ∝ n_e² が劇的に減少。',
+  '<span class="label">Phase 2c 軸圧縮:</span> 電子が少ない状態で軸方向に圧縮 → 点へ。Ti/Te 分離が維持される。',
+  '<span class="label">Phase 3 燃焼:</span> 電子が少ない → 制動放射が激減 → 核融合エネルギーが損失を大幅に上回る！',
+  '<span class="label">Phase 4 排気:</span> α粒子を回収。残留電子・ヘリウムを排出してリセット。',
+];
+
+function getPhase(t) {
+  let acc = 0;
+  for (let i = 0; i < phases.length; i++) {
+    if (t < acc + phases[i].dur) return { idx: i, prog: (t - acc) / phases[i].dur };
+    acc += phases[i].dur;
+  }
+  return { idx: 5, prog: 1 };
+}
+function ease(t) { return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2,2)/2; }
+
+// Particles
+const N_ION = 60, N_ELEC = 80;
+const particles = [];
+for (let i = 0; i < N_ION + N_ELEC; i++) {
+  const isE = i >= N_ION;
+  particles.push({
+    isElectron: isE,
+    // normalized coords [-1,1]
+    x: (Math.random() - 0.5) * 1.6,
+    y: (Math.random() - 0.5) * 1.6,
+    vx: 0, vy: 0,
+    escaped: false,
+    escapeDir: 0,
+    escapeT: 0,
+    baseX: 0, baseY: 0,
+    size: isE ? 3 : 5,
+  });
+  particles[i].baseX = particles[i].x;
+  particles[i].baseY = particles[i].y;
+}
+
+function drawWalls(cx, cy, rW, rH, phase, prog) {
+  // Draw reactor walls
+  ctx.strokeStyle = '#334';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(cx - rW, cy - rH, rW * 2, rH * 2);
+
+  // End electrodes
+  if (phase >= 1) {
+    const gateOpen = (phase === 2) ? ease(Math.min(1, prog * 2)) : (phase > 2 ? 0.1 : 0);
+    const gateColor = phase === 2 ? `rgba(255,170,0,${0.8 - gateOpen * 0.5})` : 'rgba(255,170,0,0.3)';
+
+    // Left electrode
+    ctx.fillStyle = gateColor;
+    const ew = 12;
+    const gapH = rH * gateOpen * 0.7;
+    // top part
+    ctx.fillRect(cx - rW - ew, cy - rH, ew, rH - gapH);
+    // bottom part
+    ctx.fillRect(cx - rW - ew, cy + gapH, ew, rH - gapH);
+    // Right electrode
+    ctx.fillRect(cx + rW, cy - rH, ew, rH - gapH);
+    ctx.fillRect(cx + rW, cy + gapH, ew, rH - gapH);
+
+    // + labels on electrodes
+    if (phase === 2 || (phase > 2 && phase < 5)) {
+      ctx.font = 'bold 20px monospace';
+      ctx.fillStyle = '#ffaa00';
+      ctx.textAlign = 'center';
+      ctx.fillText('+', cx - rW - ew/2, cy - rH + 20);
+      ctx.fillText('+', cx + rW + ew/2, cy - rH + 20);
+    }
+  }
+}
+
+function drawMagneticField(cx, cy, rW, rH, phase, prog) {
+  if (phase < 1) return;
+  const alpha = phase === 1 ? prog * 0.2 : 0.2;
+  ctx.strokeStyle = `rgba(68,255,136,${alpha})`;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([5, 8]);
+
+  const compression = phase >= 1 ? Math.min(1, (phase === 1 ? prog : 1)) : 0;
+  const nLines = 7;
+  for (let i = 0; i < nLines; i++) {
+    const frac = (i / (nLines - 1)) * 2 - 1; // -1 to 1
+    const ly = cy + frac * rH * 0.6 * (1 - compression * 0.7);
+    ctx.beginPath();
+    ctx.moveTo(cx - rW * 0.95, ly);
+    ctx.lineTo(cx + rW * 0.95, ly);
+    ctx.stroke();
+
+    // Arrowheads
+    ctx.beginPath();
+    ctx.moveTo(cx + rW * 0.5, ly);
+    ctx.lineTo(cx + rW * 0.5 - 6, ly - 3);
+    ctx.moveTo(cx + rW * 0.5, ly);
+    ctx.lineTo(cx + rW * 0.5 - 6, ly + 3);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+}
+
+function updateParticles(phase, prog) {
+  const ep = ease(prog);
+
+  particles.forEach(p => {
+    if (p.escaped) {
+      // Continue moving off screen
+      p.escapeT += 0.03 * speed;
+      return;
+    }
+
+    // Target based on phase
+    let targetRadiusX = 0.8; // half-width of plasma
+    let targetRadiusY = 0.8;
+    let compressX = 1, compressY = 1;
+
+    if (phase === 0) {
+      // Gathering toward center
+      compressX = 1 - ep * 0.3;
+      compressY = 1 - ep * 0.3;
+    } else if (phase === 1) {
+      // Cylindrical compression (compress Y = radial, keep X = axial)
+      compressX = 0.7;
+      compressY = 0.7 * (1 - ep * 0.85);
+    } else if (phase === 2) {
+      // Electron exhaust
+      compressX = 0.7;
+      compressY = 0.7 * 0.15;
+
+      if (p.isElectron && !p.escaped) {
+        // Electrons escape along axis (X direction)
+        const escapeProb = ep * 0.06 * speed;
+        if (Math.random() < escapeProb) {
+          p.escaped = true;
+          p.escapeDir = p.baseX > 0 ? 1 : -1;
+          p.escapeT = 0;
+        }
+      }
+    } else if (phase === 3) {
+      // Axial compression to point
+      compressX = 0.7 * (1 - ep * 0.9);
+      compressY = 0.7 * 0.15 * (1 - ep * 0.5);
+    } else if (phase === 4) {
+      // Burning - tight point
+      compressX = 0.07;
+      compressY = 0.07;
+    } else {
+      // Exhaust - expand
+      compressX = 0.07 + ep * 0.7;
+      compressY = 0.07 + ep * 0.7;
+      if (p.escaped && ep > 0.5) {
+        p.escaped = false; // reset for next cycle
+      }
+    }
+
+    // Thermal jitter
+    const jScale = p.isElectron ? 0.012 : 0.004;
+    p.vx += (Math.random() - 0.5) * jScale;
+    p.vy += (Math.random() - 0.5) * jScale;
+
+    // Spring toward compressed position
+    const tx = p.baseX * compressX;
+    const ty = p.baseY * compressY;
+    p.vx += (tx - p.x) * 0.04;
+    p.vy += (ty - p.y) * 0.04;
+    p.vx *= 0.88;
+    p.vy *= 0.88;
+
+    p.x += p.vx;
+    p.y += p.vy;
+  });
+}
+
+function drawParticles(cx, cy, rW, rH) {
+  // Draw ions first (behind), then electrons
+  const sorted = [...particles].sort((a, b) => (a.isElectron ? 1 : 0) - (b.isElectron ? 1 : 0));
+
+  sorted.forEach(p => {
+    let px, py, alpha;
+
+    if (p.escaped) {
+      // Flying off to the side
+      const dist = p.escapeT * 2;
+      px = cx + (p.x + p.escapeDir * dist) * rW * 0.55;
+      py = cy + p.y * rH * 0.55;
+      alpha = Math.max(0, 1 - p.escapeT * 1.5);
+      if (alpha <= 0) return;
+    } else {
+      px = cx + p.x * rW * 0.55;
+      py = cy + p.y * rH * 0.55;
+      alpha = 0.9;
+    }
+
+    const color = p.isElectron
+      ? `rgba(68,136,255,${alpha})`
+      : `rgba(255,102,68,${alpha})`;
+
+    ctx.beginPath();
+    ctx.arc(px, py, p.size, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    // Glow for escaping electrons
+    if (p.escaped && alpha > 0.3) {
+      ctx.beginPath();
+      ctx.arc(px, py, p.size * 3, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(68,136,255,${alpha * 0.15})`;
+      ctx.fill();
+    }
+  });
+}
+
+function drawEscapeArrows(cx, cy, rW, rH, phase, prog) {
+  if (phase !== 2) return;
+  const alpha = ease(Math.min(1, prog * 1.5)) * 0.7;
+  ctx.strokeStyle = `rgba(68,136,255,${alpha})`;
+  ctx.fillStyle = `rgba(68,136,255,${alpha})`;
+  ctx.lineWidth = 2;
+
+  // Arrows showing electron flow
+  const offsets = [-15, 0, 15];
+  offsets.forEach(oy => {
+    // Left arrow
+    ctx.beginPath();
+    ctx.moveTo(cx - rW * 0.3, cy + oy);
+    ctx.lineTo(cx - rW * 0.75, cy + oy);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - rW * 0.75, cy + oy);
+    ctx.lineTo(cx - rW * 0.75 + 8, cy + oy - 5);
+    ctx.lineTo(cx - rW * 0.75 + 8, cy + oy + 5);
+    ctx.fill();
+    // Right arrow
+    ctx.beginPath();
+    ctx.moveTo(cx + rW * 0.3, cy + oy);
+    ctx.lineTo(cx + rW * 0.75, cy + oy);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + rW * 0.75, cy + oy);
+    ctx.lineTo(cx + rW * 0.75 - 8, cy + oy - 5);
+    ctx.lineTo(cx + rW * 0.75 - 8, cy + oy + 5);
+    ctx.fill();
+  });
+
+  // Label
+  ctx.font = '16px sans-serif';
+  ctx.fillStyle = `rgba(68,136,255,${alpha})`;
+  ctx.textAlign = 'center';
+  ctx.fillText('e⁻ 流出', cx - rW * 0.55, cy - 35);
+  ctx.fillText('e⁻ 流出', cx + rW * 0.55, cy - 35);
+}
+
+function drawTimescale(cx, cy, rW, rH, phase) {
+  if (phase !== 2) return;
+  // Show timescale comparison
+  ctx.font = '13px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#4488ff';
+  ctx.fillText('電子脱出: ~1 ns', cx - rW * 0.95, cy + rH + 30);
+  ctx.fillStyle = '#ff6644';
+  ctx.fillText('イオン脱出: ~100 ns', cx - rW * 0.95, cy + rH + 48);
+  ctx.fillStyle = '#888';
+  ctx.fillText('→ 数ns端を開ければ電子だけ出る', cx - rW * 0.95, cy + rH + 66);
+}
+
+function drawFusionBurst(cx, cy, phase, prog) {
+  if (phase !== 4) return;
+  const r = prog * 80;
+  const alpha = Math.max(0, 1 - prog * 0.7);
+  const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+  gradient.addColorStop(0, `rgba(255,255,200,${alpha})`);
+  gradient.addColorStop(0.5, `rgba(255,200,50,${alpha * 0.5})`);
+  gradient.addColorStop(1, `rgba(255,100,0,0)`);
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = gradient;
+  ctx.fill();
+}
+
+function updateMeters(phase, prog) {
+  let ne = 1, brem = 1, ratio = 0.22;
+
+  if (phase < 2) {
+    ne = 1; brem = 1; ratio = 0.22;
+  } else if (phase === 2) {
+    // During electron exhaust
+    const escaped = particles.filter(p => p.isElectron && p.escaped).length;
+    const totalE = particles.filter(p => p.isElectron).length;
+    ne = Math.max(0.05, 1 - escaped / totalE);
+    brem = ne * ne;
+    ratio = 0.22 / brem;
+  } else {
+    // After exhaust
+    const escaped = particles.filter(p => p.isElectron && p.escaped).length;
+    const totalE = particles.filter(p => p.isElectron).length;
+    ne = Math.max(0.05, 1 - escaped / totalE);
+    brem = ne * ne;
+    ratio = 0.22 / brem;
+  }
+
+  const neBar = document.getElementById('meterNe');
+  const bremBar = document.getElementById('meterBrem');
+  const ratioBar = document.getElementById('meterRatio');
+  neBar.style.width = (ne * 100) + '%';
+  bremBar.style.width = (brem * 100) + '%';
+  ratioBar.style.width = Math.min(100, ratio / 30 * 100) + '%';
+  ratioBar.style.background = ratio >= 1 ? '#44ff88' : '#ff4444';
+
+  document.getElementById('valNe').textContent = (ne * 100).toFixed(0) + '%';
+  document.getElementById('valBrem').textContent = (brem * 100).toFixed(0) + '%';
+  document.getElementById('valRatio').textContent = ratio.toFixed(1);
+  document.getElementById('valRatio').style.color = ratio >= 1 ? '#44ff88' : '#ff4444';
+}
+
+function render() {
+  if (!paused) time += 0.016 * speed;
+  const lt = time % totalDur;
+  const { idx: phase, prog } = getPhase(lt);
+
+  // Update phase bar
+  for (let i = 0; i < 6; i++) {
+    const seg = document.getElementById('seg' + i);
+    seg.className = 'phase-seg' + (i === phase ? ' active' : (i < phase ? ' done' : ''));
+  }
+
+  // Reset escaped electrons at cycle start
+  if (phase === 0 && prog < 0.05) {
+    particles.forEach(p => { p.escaped = false; p.escapeT = 0; });
+  }
+
+  // Info text
+  document.getElementById('infoBox').innerHTML = infoTexts[phase];
+
+  // Clear
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#08081a';
+  ctx.fillRect(0, 0, W, H);
+
+  const cx = W / 2, cy = H / 2;
+  const rW = W * 0.4, rH = H * 0.35;
+
+  // Phase label at top
+  ctx.font = 'bold 18px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffaa00';
+  ctx.fillText(phases[phase].name, cx, 30);
+
+  drawMagneticField(cx, cy, rW, rH, phase, prog);
+  drawWalls(cx, cy, rW, rH, phase, prog);
+  updateParticles(phase, prog);
+  drawParticles(cx, cy, rW, rH);
+  drawEscapeArrows(cx, cy, rW, rH, phase, prog);
+  drawTimescale(cx, cy, rW, rH, phase);
+  drawFusionBurst(cx, cy, phase, prog);
+  updateMeters(phase, prog);
+
+  requestAnimationFrame(render);
+}
+
+requestAnimationFrame(render);
+</script>
+</body>
+</html>

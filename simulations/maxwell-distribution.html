@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>マクスウェル分布 vs 非マクスウェル分布</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0a0a1a;
+  color: #e0e0e0;
+  font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
+}
+h1 { text-align: center; padding: 14px; font-size: 1.3em; color: #88ccff; }
+.subtitle { text-align: center; color: #888; font-size: 0.8em; margin-bottom: 8px; }
+
+.container { max-width: 850px; margin: 0 auto; padding: 0 12px; }
+
+.row { display: flex; gap: 12px; margin-bottom: 10px; }
+.col { flex: 1; }
+
+.panel {
+  background: #111128; border: 1px solid #333; border-radius: 10px;
+  padding: 10px; position: relative;
+}
+.panel-title { font-size: 0.85em; font-weight: bold; margin-bottom: 6px; }
+.panel canvas { width: 100%; height: 220px; display: block; border-radius: 6px; }
+
+.controls {
+  text-align: center; padding: 8px;
+  display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;
+}
+.controls button {
+  background: #1a1a3a; color: #88ccff; border: 1px solid #444;
+  padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 0.8em;
+}
+.controls button:hover { background: #2a2a5a; }
+.controls button.on { border-color: #ffaa00; color: #ffaa00; }
+
+.slider-row {
+  display: flex; align-items: center; gap: 10px; padding: 4px 0;
+  font-size: 0.78em;
+}
+.slider-row input[type=range] { flex: 1; }
+.slider-row .val { min-width: 60px; text-align: right; color: #ffaa00; }
+
+.info-box {
+  background: #111128; border: 1px solid #333; border-radius: 8px;
+  padding: 10px; font-size: 0.75em; line-height: 1.6; margin-top: 8px;
+}
+.info-box .label { color: #ffaa00; font-weight: bold; }
+
+.time-bar {
+  background: #111128; border: 1px solid #333; border-radius: 8px;
+  padding: 8px 12px; margin-top: 8px;
+}
+.time-bar canvas { width: 100%; height: 60px; display: block; }
+
+.meter-row { display: flex; gap: 10px; margin-top: 8px; }
+.meter {
+  flex: 1; background: #111128; border: 1px solid #333; border-radius: 6px; padding: 6px 10px;
+  font-size: 0.72em;
+}
+.meter-label { color: #888; margin-bottom: 2px; }
+.meter-bar-bg { background: #1a1a2a; height: 8px; border-radius: 4px; overflow: hidden; }
+.meter-bar { height: 100%; border-radius: 4px; transition: width 0.2s; }
+.meter-val { text-align: right; font-size: 0.9em; margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<h1>マクスウェル分布 vs 非マクスウェル分布</h1>
+<div class="subtitle">同じ平均エネルギーでも「速度の揃い方」で核融合率が全く違う</div>
+
+<div class="container">
+
+<div class="controls">
+  <button onclick="setMode('compare')" class="on" id="btnCompare">比較モード</button>
+  <button onclick="setMode('thermalize')" id="btnTherm">熱化アニメーション</button>
+  <button onclick="togglePause()" id="btnPause">一時停止</button>
+</div>
+
+<div class="row">
+  <div class="col">
+    <div class="panel">
+      <div class="panel-title" style="color:#ff8844">マクスウェル分布（熱平衡）</div>
+      <canvas id="canvasMaxwell"></canvas>
+    </div>
+  </div>
+  <div class="col">
+    <div class="panel" style="border-color:#ffaa0066">
+      <div class="panel-title" style="color:#44ff88">非マクスウェル分布（ビーム的）</div>
+      <canvas id="canvasBeam"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Distribution curves -->
+<div class="panel">
+  <div class="panel-title">速度分布の形</div>
+  <canvas id="canvasDist"></canvas>
+  <div class="slider-row">
+    <span>温度 T:</span>
+    <input type="range" id="sliderT" min="50" max="800" value="300" step="10">
+    <span class="val" id="valT">300 keV</span>
+  </div>
+</div>
+
+<div class="meter-row">
+  <div class="meter">
+    <div class="meter-label">核融合に有効な粒子の割合</div>
+    <div style="display:flex; gap: 8px">
+      <div style="flex:1">
+        <div class="meter-bar-bg"><div class="meter-bar" id="meterMw" style="width:5%;background:#ff8844"></div></div>
+        <div class="meter-val" style="color:#ff8844;font-size:0.8em" id="valMw">マクスウェル: 5%</div>
+      </div>
+      <div style="flex:1">
+        <div class="meter-bar-bg"><div class="meter-bar" id="meterBm" style="width:85%;background:#44ff88"></div></div>
+        <div class="meter-val" style="color:#44ff88;font-size:0.8em" id="valBm">ビーム: 85%</div>
+      </div>
+    </div>
+  </div>
+  <div class="meter">
+    <div class="meter-label">P_fusion（相対値）</div>
+    <div style="display:flex; gap: 8px">
+      <div style="flex:1">
+        <div class="meter-bar-bg"><div class="meter-bar" id="meterPfMw" style="width:20%;background:#ff8844"></div></div>
+        <div class="meter-val" style="color:#ff8844;font-size:0.8em" id="valPfMw">1.0x</div>
+      </div>
+      <div style="flex:1">
+        <div class="meter-bar-bg"><div class="meter-bar" id="meterPfBm" style="width:70%;background:#44ff88"></div></div>
+        <div class="meter-val" style="color:#44ff88;font-size:0.8em" id="valPfBm">3.5x</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Timescale -->
+<div class="time-bar">
+  <div class="panel-title" style="font-size:0.78em;margin-bottom:4px">タイムスケール: 非マクスウェル分布は維持できるか？</div>
+  <canvas id="canvasTime"></canvas>
+</div>
+
+<div class="info-box" id="infoBox">
+  <span class="label">比較モード:</span> 左がマクスウェル分布（速度バラバラ）、右が非マクスウェル分布（速度が揃っている）。
+  粒子の色はエネルギー: 青=低い、赤=ガモフピーク付近（核融合できる）。
+</div>
+
+</div>
+
+<script>
+// Canvas setup
+const cMw = document.getElementById('canvasMaxwell');
+const cBm = document.getElementById('canvasBeam');
+const cDist = document.getElementById('canvasDist');
+const cTime = document.getElementById('canvasTime');
+function initCanvas(c, h) { c.width = c.offsetWidth * 2; c.height = h || 440; return c.getContext('2d'); }
+const ctxMw = initCanvas(cMw);
+const ctxBm = initCanvas(cBm);
+const ctxDist = initCanvas(cDist, 300);
+const ctxTime = initCanvas(cTime, 120);
+
+let mode = 'compare'; // 'compare' or 'thermalize'
+let paused = false;
+let time = 0;
+let thermProgress = 0;
+
+function setMode(m) {
+  mode = m;
+  thermProgress = 0;
+  document.getElementById('btnCompare').classList.toggle('on', m === 'compare');
+  document.getElementById('btnTherm').classList.toggle('on', m === 'thermalize');
+  if (m === 'thermalize') {
+    document.getElementById('infoBox').innerHTML =
+      '<span class="label">熱化アニメーション:</span> 右のビーム分布がクーロン衝突で徐々にマクスウェル分布に崩れていく様子。τ_ii ≈ 10〜100 ns。燃焼（1〜10 ns）の間に崩れなければセーフ。';
+  } else {
+    document.getElementById('infoBox').innerHTML =
+      '<span class="label">比較モード:</span> 左がマクスウェル分布（速度バラバラ）、右が非マクスウェル分布（速度が揃っている）。粒子の色はエネルギー: 青=低い、赤=ガモフピーク付近（核融合できる）。';
+  }
+}
+function togglePause() {
+  paused = !paused;
+  const b = document.getElementById('btnPause');
+  b.textContent = paused ? '再生' : '一時停止';
+  b.classList.toggle('on', paused);
+}
+
+// Particles for each panel
+const N = 100;
+const gamowPeak = 0.65; // normalized energy where Gamow peak is
+
+function createMaxwellParticles() {
+  const ps = [];
+  for (let i = 0; i < N; i++) {
+    // Maxwell-Boltzmann: use Box-Muller for gaussian, then chi distribution
+    const u1 = Math.random(), u2 = Math.random(), u3 = Math.random();
+    const vx = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2) * 0.3;
+    const vy = Math.sqrt(-2 * Math.log(u1)) * Math.sin(2 * Math.PI * u2) * 0.3;
+    const energy = (vx * vx + vy * vy);
+    ps.push({ x: Math.random() * 2 - 1, y: Math.random() * 2 - 1, vx, vy, energy });
+  }
+  return ps;
+}
+
+function createBeamParticles() {
+  const ps = [];
+  for (let i = 0; i < N; i++) {
+    // Beam: all roughly at Gamow peak energy, radial direction
+    const angle = Math.random() * Math.PI * 2;
+    const speed = gamowPeak + (Math.random() - 0.5) * 0.08; // narrow spread
+    const vx = Math.cos(angle) * speed * 0.3;
+    const vy = Math.sin(angle) * speed * 0.3;
+    const energy = speed * speed;
+    ps.push({ x: Math.random() * 2 - 1, y: Math.random() * 2 - 1, vx, vy, energy });
+  }
+  return ps;
+}
+
+let psMw = createMaxwellParticles();
+let psBm = createBeamParticles();
+
+function energyColor(e, gamow) {
+  // Blue for low energy, red/orange for near Gamow peak
+  const dist = Math.abs(Math.sqrt(e) - gamow) / gamow;
+  if (dist < 0.25) return `rgba(255,${Math.floor(80 + 100 * dist)},68,0.9)`; // red-orange = reactive
+  return `rgba(68,${Math.floor(100 + 80 * (1-Math.min(1,dist)))},255,0.7)`; // blue = non-reactive
+}
+
+function updateParticles(ps, dt, thermalize) {
+  ps.forEach(p => {
+    // Bounce in box
+    p.x += p.vx * dt * 2;
+    p.y += p.vy * dt * 2;
+    if (p.x > 1 || p.x < -1) { p.vx *= -1; p.x = Math.max(-1, Math.min(1, p.x)); }
+    if (p.y > 1 || p.y < -1) { p.vy *= -1; p.y = Math.max(-1, Math.min(1, p.y)); }
+    p.energy = p.vx * p.vx + p.vy * p.vy;
+
+    if (thermalize > 0) {
+      // Gradually randomize velocities toward Maxwell distribution
+      const rate = thermalize * 0.003;
+      const u1 = Math.random(), u2 = Math.random();
+      const gx = Math.sqrt(-2 * Math.log(Math.max(0.0001, u1))) * Math.cos(2 * Math.PI * u2) * 0.3;
+      const gy = Math.sqrt(-2 * Math.log(Math.max(0.0001, u1))) * Math.sin(2 * Math.PI * u2) * 0.3;
+      p.vx += (gx - p.vx) * rate;
+      p.vy += (gy - p.vy) * rate;
+    }
+  });
+}
+
+function drawParticles(ctx, w, h, ps) {
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#08081a';
+  ctx.fillRect(0, 0, w, h);
+
+  // Gamow peak ring
+  ctx.strokeStyle = 'rgba(255,170,0,0.15)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.arc(w/2, h/2, Math.min(w,h) * 0.3, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Label
+  ctx.font = '11px sans-serif';
+  ctx.fillStyle = 'rgba(255,170,0,0.3)';
+  ctx.textAlign = 'center';
+  ctx.fillText('ガモフピーク', w/2, h/2 - Math.min(w,h) * 0.3 - 6);
+
+  ps.forEach(p => {
+    const px = (p.x * 0.45 + 0.5) * w;
+    const py = (p.y * 0.45 + 0.5) * h;
+    const r = 4;
+    ctx.beginPath();
+    ctx.arc(px, py, r, 0, Math.PI * 2);
+    ctx.fillStyle = energyColor(p.energy, gamowPeak * 0.09);
+    ctx.fill();
+
+    // Speed line
+    ctx.strokeStyle = energyColor(p.energy, gamowPeak * 0.09);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(px + p.vx * 30, py + p.vy * 30);
+    ctx.stroke();
+  });
+}
+
+function drawDistribution(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#0a0a18';
+  ctx.fillRect(0, 0, w, h);
+
+  const T = parseInt(document.getElementById('sliderT').value);
+  document.getElementById('valT').textContent = T + ' keV';
+
+  const margin = { l: 60, r: 20, t: 20, b: 40 };
+  const pw = w - margin.l - margin.r;
+  const ph = h - margin.t - margin.b;
+
+  // Axes
+  ctx.strokeStyle = '#444';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(margin.l, margin.t);
+  ctx.lineTo(margin.l, margin.t + ph);
+  ctx.lineTo(margin.l + pw, margin.t + ph);
+  ctx.stroke();
+
+  // Axis labels
+  ctx.font = '13px sans-serif';
+  ctx.fillStyle = '#888';
+  ctx.textAlign = 'center';
+  ctx.fillText('エネルギー (keV)', margin.l + pw/2, h - 5);
+  ctx.save();
+  ctx.translate(15, margin.t + ph/2);
+  ctx.rotate(-Math.PI/2);
+  ctx.fillText('確率密度', 0, 0);
+  ctx.restore();
+
+  // Gamow peak marker
+  const gamowE = 600; // keV
+  const gamowX = margin.l + (gamowE / 1200) * pw;
+  ctx.strokeStyle = 'rgba(255,170,0,0.4)';
+  ctx.setLineDash([4,4]);
+  ctx.beginPath();
+  ctx.moveTo(gamowX, margin.t);
+  ctx.lineTo(gamowX, margin.t + ph);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.font = '12px sans-serif';
+  ctx.fillStyle = '#ffaa00';
+  ctx.textAlign = 'center';
+  ctx.fillText('ガモフピーク', gamowX, margin.t + 14);
+  ctx.fillText('(~600 keV)', gamowX, margin.t + 28);
+
+  // Energy tick marks
+  ctx.font = '10px sans-serif';
+  ctx.fillStyle = '#666';
+  for (let e = 0; e <= 1200; e += 200) {
+    const x = margin.l + (e / 1200) * pw;
+    ctx.beginPath();
+    ctx.moveTo(x, margin.t + ph);
+    ctx.lineTo(x, margin.t + ph + 4);
+    ctx.stroke();
+    ctx.fillText(e, x, margin.t + ph + 16);
+  }
+
+  // Maxwell distribution curve
+  const kT = T;
+  let maxVal = 0;
+  const nPts = 200;
+  const mwPts = [];
+  for (let i = 0; i < nPts; i++) {
+    const E = (i / nPts) * 1200;
+    const f = Math.sqrt(E) * Math.exp(-E / kT);
+    mwPts.push(f);
+    maxVal = Math.max(maxVal, f);
+  }
+
+  // Beam distribution
+  const beamCenter = 600;
+  const beamWidth = 40;
+  const bmPts = [];
+  let bmMax = 0;
+  for (let i = 0; i < nPts; i++) {
+    const E = (i / nPts) * 1200;
+    const f = Math.exp(-((E - beamCenter) ** 2) / (2 * beamWidth * beamWidth));
+    bmPts.push(f);
+    bmMax = Math.max(bmMax, f);
+  }
+
+  // Thermalization blend
+  const blend = mode === 'thermalize' ? Math.min(1, thermProgress) : 0;
+
+  // Normalize and draw
+  const scale = ph * 0.85;
+
+  // Fill area for Maxwell
+  ctx.beginPath();
+  ctx.moveTo(margin.l, margin.t + ph);
+  for (let i = 0; i < nPts; i++) {
+    const x = margin.l + (i / nPts) * pw;
+    const y = margin.t + ph - (mwPts[i] / maxVal) * scale;
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(margin.l + pw, margin.t + ph);
+  ctx.fillStyle = 'rgba(255,136,68,0.15)';
+  ctx.fill();
+
+  // Maxwell curve
+  ctx.beginPath();
+  for (let i = 0; i < nPts; i++) {
+    const x = margin.l + (i / nPts) * pw;
+    const y = margin.t + ph - (mwPts[i] / maxVal) * scale;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = '#ff8844';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Beam / thermalizing curve
+  const blendPts = [];
+  let blendMax = 0;
+  for (let i = 0; i < nPts; i++) {
+    const bm = bmPts[i] / bmMax;
+    const mw = mwPts[i] / maxVal;
+    const v = bm * (1 - blend) + mw * blend;
+    blendPts.push(v);
+    blendMax = Math.max(blendMax, v);
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(margin.l, margin.t + ph);
+  for (let i = 0; i < nPts; i++) {
+    const x = margin.l + (i / nPts) * pw;
+    const y = margin.t + ph - (blendPts[i] / blendMax) * scale * (1 - blend * 0.3);
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(margin.l + pw, margin.t + ph);
+  ctx.fillStyle = `rgba(68,255,136,${0.15 * (1 - blend * 0.5)})`;
+  ctx.fill();
+
+  ctx.beginPath();
+  for (let i = 0; i < nPts; i++) {
+    const x = margin.l + (i / nPts) * pw;
+    const y = margin.t + ph - (blendPts[i] / blendMax) * scale * (1 - blend * 0.3);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  const gc = blend < 0.5 ? '#44ff88' : `rgb(${Math.floor(68+187*blend)},${Math.floor(255-119*blend)},${Math.floor(136-68*blend)})`;
+  ctx.strokeStyle = gc;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Legend
+  ctx.font = '12px sans-serif';
+  ctx.fillStyle = '#ff8844';
+  ctx.textAlign = 'left';
+  ctx.fillText('━ マクスウェル分布', margin.l + 10, margin.t + 16);
+  ctx.fillStyle = gc;
+  ctx.fillText(mode === 'thermalize' && blend > 0.01
+    ? `━ 熱化中... (${(blend*100).toFixed(0)}%)`
+    : '━ ビーム分布（非マクスウェル）', margin.l + 10, margin.t + 32);
+
+  // Update meters
+  // Effective fraction near Gamow peak
+  let mwNearGamow = 0, bmNearGamow = 0;
+  for (let i = 0; i < nPts; i++) {
+    const E = (i / nPts) * 1200;
+    if (Math.abs(E - 600) < 100) {
+      mwNearGamow += mwPts[i] / maxVal;
+      bmNearGamow += blendPts[i] / (blendMax || 1);
+    }
+  }
+  const mwFrac = Math.min(99, Math.max(1, mwNearGamow / nPts * 500));
+  const bmFrac = Math.min(99, Math.max(1, bmNearGamow / nPts * 500));
+
+  document.getElementById('meterMw').style.width = mwFrac + '%';
+  document.getElementById('valMw').textContent = 'マクスウェル: ' + mwFrac.toFixed(0) + '%';
+  document.getElementById('meterBm').style.width = bmFrac + '%';
+  document.getElementById('valBm').textContent = 'ビーム: ' + bmFrac.toFixed(0) + '%';
+
+  const pfRatio = bmFrac / Math.max(1, mwFrac);
+  document.getElementById('meterPfMw').style.width = '20%';
+  document.getElementById('valPfMw').textContent = '1.0x';
+  document.getElementById('meterPfBm').style.width = Math.min(100, pfRatio * 20) + '%';
+  document.getElementById('valPfBm').textContent = pfRatio.toFixed(1) + 'x';
+}
+
+function drawTimescale(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#0a0a18';
+  ctx.fillRect(0, 0, w, h);
+
+  const margin = { l: 10, r: 10, t: 8, b: 8 };
+  const pw = w - margin.l - margin.r;
+  const cy = h / 2;
+
+  // Log scale: 1ns to 10μs
+  // 10^0 ns to 10^4 ns
+  function logX(ns) {
+    return margin.l + (Math.log10(ns) / 4) * pw;
+  }
+
+  // Axis
+  ctx.strokeStyle = '#444';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(margin.l, cy + 15);
+  ctx.lineTo(margin.l + pw, cy + 15);
+  ctx.stroke();
+
+  // Tick marks
+  ctx.font = '11px monospace';
+  ctx.fillStyle = '#666';
+  ctx.textAlign = 'center';
+  const ticks = [
+    [1, '1 ns'], [10, '10 ns'], [100, '100 ns'], [1000, '1 μs'], [10000, '10 μs']
+  ];
+  ticks.forEach(([ns, label]) => {
+    const x = logX(ns);
+    ctx.beginPath();
+    ctx.moveTo(x, cy + 15);
+    ctx.lineTo(x, cy + 20);
+    ctx.stroke();
+    ctx.fillText(label, x, cy + 34);
+  });
+
+  // Burn phase
+  const burnL = logX(1), burnR = logX(10);
+  ctx.fillStyle = 'rgba(255,136,68,0.25)';
+  ctx.fillRect(burnL, cy - 22, burnR - burnL, 20);
+  ctx.strokeStyle = '#ff8844';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(burnL, cy - 22, burnR - burnL, 20);
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillStyle = '#ff8844';
+  ctx.textAlign = 'center';
+  ctx.fillText('燃焼', (burnL + burnR) / 2, cy - 8);
+
+  // τ_ii (thermalization)
+  const tiiL = logX(10), tiiR = logX(100);
+  ctx.fillStyle = 'rgba(68,255,136,0.15)';
+  ctx.fillRect(tiiL, cy - 22, tiiR - tiiL, 20);
+  ctx.strokeStyle = '#44ff88';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(tiiL, cy - 22, tiiR - tiiL, 20);
+  ctx.fillStyle = '#44ff88';
+  ctx.fillText('τ_ii（熱化）', (tiiL + tiiR) / 2, cy - 8);
+
+  // τ_eq
+  const teqL = logX(1000), teqR = logX(10000);
+  ctx.fillStyle = 'rgba(68,136,255,0.15)';
+  ctx.fillRect(teqL, cy - 22, teqR - teqL, 20);
+  ctx.strokeStyle = '#4488ff';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(teqL, cy - 22, teqR - teqL, 20);
+  ctx.fillStyle = '#4488ff';
+  ctx.fillText('τ_eq（Ti→Te）', (teqL + teqR) / 2, cy - 8);
+
+  // Window annotation
+  if (burnR < tiiL) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(burnR + 2, cy - 12);
+    ctx.lineTo(tiiL - 2, cy - 12);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = '10px sans-serif';
+    ctx.fillStyle = '#aaa';
+    ctx.fillText('窓?', (burnR + tiiL) / 2, cy - 15);
+  }
+}
+
+function animate() {
+  if (!paused) {
+    time += 0.016;
+    if (mode === 'thermalize') {
+      thermProgress += 0.003;
+      if (thermProgress > 1.5) thermProgress = 0; // loop
+    }
+  }
+
+  updateParticles(psMw, 0.016, 0);
+  updateParticles(psBm, 0.016, mode === 'thermalize' ? thermProgress : 0);
+
+  drawParticles(ctxMw, cMw.width, cMw.height, psMw);
+  drawParticles(ctxBm, cBm.width, cBm.height, psBm);
+  drawDistribution(ctxDist, cDist.width, cDist.height);
+  drawTimescale(ctxTime, cTime.width, cTime.height);
+
+  requestAnimationFrame(animate);
+}
+
+window.addEventListener('resize', () => {
+  initCanvas(cMw); initCanvas(cBm);
+  initCanvas(cDist, 300); initCanvas(cTime, 120);
+});
+
+document.getElementById('sliderT').addEventListener('input', () => {});
+
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

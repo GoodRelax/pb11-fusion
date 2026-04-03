@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>圧縮トポロジー — 体���ら点への4つのルー��</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0a0a1a;
+  color: #e0e0e0;
+  font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
+  overflow-x: hidden;
+}
+h1 {
+  text-align: center;
+  padding: 20px;
+  font-size: 1.4em;
+  color: #88ccff;
+}
+.subtitle {
+  text-align: center;
+  color: #888;
+  font-size: 0.85em;
+  margin-bottom: 16px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 0 16px 16px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+.panel {
+  background: #111128;
+  border-radius: 12px;
+  padding: 12px;
+  border: 1px solid #333;
+  position: relative;
+}
+.panel.active {
+  border-color: #ffaa00;
+  box-shadow: 0 0 20px rgba(255, 170, 0, 0.15);
+}
+.panel-title {
+  font-size: 0.9em;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+.panel-route {
+  font-size: 0.75em;
+  color: #aaa;
+  margin-bottom: 8px;
+}
+.panel canvas {
+  width: 100%;
+  height: 200px;
+  display: block;
+  border-radius: 8px;
+}
+.panel-info {
+  font-size: 0.72em;
+  color: #999;
+  margin-top: 6px;
+  line-height: 1.5;
+}
+.legend {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  padding: 8px;
+  font-size: 0.75em;
+  color: #aaa;
+}
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+}
+.controls {
+  text-align: center;
+  padding: 10px;
+}
+.controls button {
+  background: #222244;
+  color: #88ccff;
+  border: 1px solid #444;
+  padding: 6px 18px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85em;
+  margin: 0 4px;
+}
+.controls button:hover { background: #333366; }
+.controls button.active-btn { background: #44448866; border-color: #ffaa00; color: #ffaa00; }
+.phase-label {
+  text-align: center;
+  font-size: 1em;
+  color: #ffaa00;
+  padding: 4px;
+  min-height: 1.5em;
+}
+.compat {
+  max-width: 900px;
+  margin: 8px auto;
+  padding: 0 16px;
+}
+.compat table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75em;
+}
+.compat th, .compat td {
+  padding: 6px 8px;
+  border: 1px solid #333;
+  text-align: center;
+}
+.compat th { background: #1a1a3a; color: #88ccff; }
+.compat td { background: #111128; }
+.compat .highlight { background: #1a2a1a; color: #88ff88; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>圧縮トポロジー — 体から点への4つのルート</h1>
+<div class="subtitle">3D(体) → 0D(点) の中間次元 {2D(面), 1D(線)} を経由するかで 2² = 4 通り</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#ff6644"></div> イオン（高温）</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#4488ff"></div> 電子（低温を保ちたい）</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#44ff88"></div> 磁力線</div>
+</div>
+
+<div class="controls">
+  <button onclick="setSpeed(0.3)">遅い</button>
+  <button onclick="setSpeed(1)" class="active-btn" id="btnNormal">普通</button>
+  <button onclick="setSpeed(2.5)">速い</button>
+  <button onclick="togglePause()" id="btnPause">一時停止</button>
+</div>
+
+<div class="phase-label" id="phaseLabel"></div>
+
+<div class="grid">
+  <div class="panel" id="panelA">
+    <div class="panel-title">A: 体→面→線→点</div>
+    <div class="panel-route">段階圧縮（各ステップで1次元ずつ）</div>
+    <canvas id="canvasA"></canvas>
+    <div class="panel-info">Ti/Te分離: 🟡 中程度 ｜ 不安定性: 分散<br>例: 多段ライナー（概念��階）</div>
+  </div>
+  <div class="panel" id="panelB">
+    <div class="panel-title">B: 体→面→点</div>
+    <div class="panel-route">平面収束（面から一気に点へ）</div>
+    <canvas id="canvasB"></canvas>
+    <div class="panel-info">Ti/Te分離: 🟡 中程度 ｜ 不安定性: RT(面)<br>例: レーザー駆動平板ターゲット</div>
+  </div>
+  <div class="panel" id="panelC">
+    <div class="panel-title" style="color:#ffaa00">C: 体→線→点 ← 4��イクル案</div>
+    <div class="panel-route">Zピンチ型（円筒→軸方向ピンチ）</div>
+    <canvas id="canvasC"></canvas>
+    <div class="panel-info" style="color:#ccc">Ti/Te分離: 🟢 <b>最も容易</b> ｜ 不安定性: ソーセージ/キンク<br>例: <b>Zピンチ, MagLIF, 4サイクル案</b></div>
+  </div>
+  <div class="panel" id="panelD">
+    <div class="panel-title">D: 体→点</div>
+    <div class="panel-route">球対称爆縮（一気に点へ）</div>
+    <canvas id="canvasD"></canvas>
+    <div class="panel-info">Ti/Te分離: �� 困難 ｜ 不安定性: RT(球面)<br>例: NIF（レ��ザー慣性閉じ込め）</div>
+  </div>
+</div>
+
+<div class="compat">
+  <table>
+    <tr>
+      <th>ルート</th>
+      <th>圧縮効率</th>
+      <th>Ti/Te分離</th>
+      <th>不安定性制御</th>
+      <th>p-B11適性</th>
+    </tr>
+    <tr>
+      <td>A: 体→面→線→点</td><td>🟡 中</td><td>🟡 中</td><td>🟢 分散</td><td>🟡</td>
+    </tr>
+    <tr>
+      <td>B: 体→面→点</td><td>🟡 ��</td><td>🟡 中</td><td>🔴 RT</td><td>🟡</td>
+    </tr>
+    <tr class="highlight">
+      <td>C: 体→線→点</td><td>🟢 高</td><td>🟢 最適</td><td>🟡 中</td><td>🟢 最適</td>
+    </tr>
+    <tr>
+      <td>D: 体→点</td><td>🟢 最高</td><td>🔴 困難</td><td>🔴 RT</td><td>🔴</td>
+    </tr>
+  </table>
+</div>
+
+<script>
+const canvases = {};
+const ctxs = {};
+['A','B','C','D'].forEach(id => {
+  const c = document.getElementById('canvas' + id);
+  c.width = c.offsetWidth * 2;
+  c.height = 400;
+  canvases[id] = c;
+  ctxs[id] = c.getContext('2d');
+});
+
+let speed = 1;
+let paused = false;
+let time = 0;
+
+const phases = [
+  { name: '初期状態: 3D 体積', duration: 1.5 },
+  { name: '圧縮フェーズ 1', duration: 2.5 },
+  { name: '圧縮フ��ーズ 2', duration: 2.5 },
+  { name: '最終状態: 0D 点', duration: 2.0 },
+];
+const totalDuration = phases.reduce((s, p) => s + p.duration, 0);
+
+function setSpeed(s) {
+  speed = s;
+  document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active-btn'));
+  if (s === 0.3) document.querySelectorAll('.controls button')[0].classList.add('active-btn');
+  if (s === 1) document.getElementById('btnNormal').classList.add('active-btn');
+  if (s === 2.5) document.querySelectorAll('.controls button')[2].classList.add('active-btn');
+}
+
+function togglePause() {
+  paused = !paused;
+  document.getElementById('btnPause').textContent = paused ? '再���' : '一時停止';
+  document.getElementById('btnPause').classList.toggle('active-btn', paused);
+}
+
+function getPhase(t) {
+  let acc = 0;
+  for (let i = 0; i < phases.length; i++) {
+    if (t < acc + phases[i].duration) {
+      return { index: i, progress: (t - acc) / phases[i].duration, name: phases[i].name };
+    }
+    acc += phases[i].duration;
+  }
+  return { index: 3, progress: 1, name: phases[3].name };
+}
+
+function easeInOut(t) { return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2,2)/2; }
+
+// Particle system for each route
+function createParticles(n) {
+  const ps = [];
+  for (let i = 0; i < n; i++) {
+    ps.push({
+      // Initial 3D position mapped to 2D
+      x: (Math.random() - 0.5),
+      y: (Math.random() - 0.5),
+      z: (Math.random() - 0.5),
+      isElectron: i < n * 0.4,
+      vx: (Math.random() - 0.5) * 0.01,
+      vy: (Math.random() - 0.5) * 0.01,
+    });
+  }
+  return ps;
+}
+
+const particlesA = createParticles(80);
+const particlesB = createParticles(80);
+const particlesC = createParticles(80);
+const particlesD = createParticles(80);
+
+function drawRoute(ctx, w, h, particles, route, phase, progress) {
+  const cx = w / 2, cy = h / 2;
+  const maxR = Math.min(w, h) * 0.38;
+  const ep = easeInOut(Math.min(1, progress));
+
+  // Compute target positions based on route and phase
+  particles.forEach((p, i) => {
+    let tx, ty, scale;
+    const bx = p.x, by = p.y, bz = p.z;
+
+    if (route === 'A') {
+      // A: body -> plane -> line -> point
+      if (phase === 0) {
+        tx = bx; ty = by; // 3D projected
+      } else if (phase === 1) {
+        // flatten to plane (compress z)
+        tx = bx;
+        ty = by * (1 - ep) + by * 0.05 * ep;
+      } else if (phase === 2) {
+        // plane -> line (compress x)
+        tx = bx * (1 - ep) * 0.05 + bx * 0.02 * ep;
+        ty = by * 0.05;
+      } else {
+        // line -> point
+        tx = bx * 0.02 * (1 - ep);
+        ty = by * 0.05 * (1 - ep);
+      }
+    } else if (route === 'B') {
+      // B: body -> plane -> point
+      if (phase === 0) {
+        tx = bx; ty = by;
+      } else if (phase === 1) {
+        // flatten to plane
+        tx = bx;
+        ty = by * (1 - ep) + by * 0.05 * ep;
+      } else if (phase === 2) {
+        // plane -> point (compress both x and remaining y)
+        const s = 1 - ep * 0.97;
+        tx = bx * s * 0.3;
+        ty = by * 0.05 * s;
+      } else {
+        tx = bx * 0.03 * (1 - ep);
+        ty = by * 0.05 * 0.03 * (1 - ep);
+      }
+    } else if (route === 'C') {
+      // C: body -> line -> point (Z-pinch)
+      if (phase === 0) {
+        tx = bx; ty = by;
+      } else if (phase === 1) {
+        // cylindrical compression: compress radially (x), keep y (axis)
+        tx = bx * (1 - ep * 0.95);
+        ty = by;
+      } else if (phase === 2) {
+        // line -> point: compress axially (y)
+        tx = bx * 0.05;
+        ty = by * (1 - ep * 0.95);
+      } else {
+        tx = bx * 0.05 * (1 - ep);
+        ty = by * 0.05 * (1 - ep);
+      }
+    } else {
+      // D: body -> point (spherical implosion)
+      if (phase === 0) {
+        tx = bx; ty = by;
+      } else if (phase === 1) {
+        // uniform compression
+        const s = 1 - ep * 0.7;
+        tx = bx * s; ty = by * s;
+      } else if (phase === 2) {
+        const s = 0.3 * (1 - ep * 0.9);
+        tx = bx * s; ty = by * s;
+      } else {
+        const s = 0.03 * (1 - ep);
+        tx = bx * s; ty = by * s;
+      }
+    }
+
+    // For C route, electrons get pushed away from center (magnetic exclusion)
+    if (route === 'C' && p.isElectron && phase >= 1) {
+      const pushFactor = phase === 1 ? ep * 0.3 : 0.3;
+      tx += (bx > 0 ? 1 : -1) * pushFactor * 0.15;
+    }
+
+    // Add thermal jitter
+    const jitter = p.isElectron ? 0.008 : 0.003;
+    p.vx += (Math.random() - 0.5) * jitter;
+    p.vy += (Math.random() - 0.5) * jitter;
+    p.vx *= 0.92;
+    p.vy *= 0.92;
+
+    const drawX = cx + (tx + p.vx) * maxR * 1.6;
+    const drawY = cy + (ty + p.vy) * maxR * 1.6;
+
+    // Draw particle
+    const r = p.isElectron ? 2.5 : 4;
+    const color = p.isElectron ? 'rgba(68,136,255,' : 'rgba(255,102,68,';
+    const alpha = 0.85;
+    ctx.beginPath();
+    ctx.arc(drawX, drawY, r, 0, Math.PI * 2);
+    ctx.fillStyle = color + alpha + ')';
+    ctx.fill();
+  });
+
+  // Draw magnetic field lines for route C
+  if (route === 'C' && phase >= 1) {
+    ctx.strokeStyle = 'rgba(68,255,136,0.25)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 6]);
+    for (let i = -3; i <= 3; i++) {
+      const lx = cx + i * maxR * 0.08;
+      ctx.beginPath();
+      ctx.moveTo(lx, cy - maxR * 0.9);
+      ctx.lineTo(lx, cy + maxR * 0.9);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+
+  // Draw compression arrows
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  ctx.lineWidth = 1.5;
+  const arrowSize = 8;
+  if (route === 'C' && phase === 1) {
+    // radial arrows
+    [[-1,0],[1,0]].forEach(([dx,dy]) => {
+      const ax = cx + dx * maxR * 0.75;
+      const ay = cy;
+      const bxx = cx + dx * maxR * 0.35;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bxx, ay);
+      ctx.stroke();
+      // arrowhead
+      ctx.beginPath();
+      ctx.moveTo(bxx, ay);
+      ctx.lineTo(bxx + dx * arrowSize, ay - arrowSize/2);
+      ctx.moveTo(bxx, ay);
+      ctx.lineTo(bxx + dx * arrowSize, ay + arrowSize/2);
+      ctx.stroke();
+    });
+  }
+  if (route === 'D' && (phase === 1 || phase === 2)) {
+    // all-direction arrows for spherical
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
+      const d = maxR * 0.75;
+      const d2 = maxR * 0.35;
+      const ax = cx + Math.cos(a) * d;
+      const ay = cy + Math.sin(a) * d;
+      const bxx = cx + Math.cos(a) * d2;
+      const byy = cy + Math.sin(a) * d2;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bxx, byy);
+      ctx.stroke();
+    }
+  }
+
+  // Draw dimension label
+  let dimLabel = '';
+  if (phase === 0) dimLabel = '3D';
+  else if (phase === 3) dimLabel = '0D';
+  else {
+    if (route === 'A') dimLabel = phase === 1 ? '→ 2D' : '→ 1D';
+    if (route === 'B') dimLabel = phase === 1 ? '→ 2D' : '→ 0D';
+    if (route === 'C') dimLabel = phase === 1 ? '→ 1D' : '→ 0D';
+    if (route === 'D') dimLabel = '→ 0D';
+  }
+  ctx.font = 'bold 22px monospace';
+  ctx.fillStyle = route === 'C' ? '#ffaa00' : '#666';
+  ctx.textAlign = 'right';
+  ctx.fillText(dimLabel, w - 12, 28);
+}
+
+function animate(ts) {
+  if (!paused) {
+    time += speed * 0.016;
+  }
+
+  const loopTime = time % totalDuration;
+  const { index, progress, name } = getPhase(loopTime);
+
+  document.getElementById('phaseLabel').textContent = name;
+
+  // Highlight active panels
+  ['A','B','C','D'].forEach(id => {
+    document.getElementById('panel' + id).classList.remove('active');
+  });
+
+  // Each route is "active" during phases relevant to it
+  if (index === 1) {
+    // Phase 1: A flattens, B flattens, C compresses radially, D compresses spherically
+    ['A','B','C','D'].forEach(id => document.getElementById('panel' + id).classList.add('active'));
+  } else if (index === 2) {
+    ['A','B','C','D'].forEach(id => document.getElementById('panel' + id).classList.add('active'));
+  }
+
+  const configs = [
+    { id: 'A', particles: particlesA, route: 'A' },
+    { id: 'B', particles: particlesB, route: 'B' },
+    { id: 'C', particles: particlesC, route: 'C' },
+    { id: 'D', particles: particlesD, route: 'D' },
+  ];
+
+  configs.forEach(({ id, particles, route }) => {
+    const ctx = ctxs[id];
+    const c = canvases[id];
+    ctx.clearRect(0, 0, c.width, c.height);
+
+    // Background
+    ctx.fillStyle = '#0a0a18';
+    ctx.fillRect(0, 0, c.width, c.height);
+
+    drawRoute(ctx, c.width, c.height, particles, route, index, progress);
+  });
+
+  requestAnimationFrame(animate);
+}
+
+// Handle resize
+window.addEventListener('resize', () => {
+  ['A','B','C','D'].forEach(id => {
+    const c = canvases[id];
+    c.width = c.offsetWidth * 2;
+    c.height = 400;
+  });
+});
+
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

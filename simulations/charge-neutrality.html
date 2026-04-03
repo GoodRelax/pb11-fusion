@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>プラズマの電荷中性</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a1a; color: #e0e0e0; font-family: 'Segoe UI', 'Hiragino Sans', sans-serif; }
+h1 { text-align: center; padding: 14px; font-size: 1.3em; color: #88ccff; }
+.subtitle { text-align: center; color: #888; font-size: 0.8em; margin-bottom: 8px; }
+.container { max-width: 850px; margin: 0 auto; padding: 0 12px; }
+.panel {
+  background: #111128; border: 1px solid #333; border-radius: 10px;
+  padding: 10px; margin-bottom: 10px;
+}
+.panel-title { font-size: 0.85em; font-weight: bold; margin-bottom: 6px; }
+.panel canvas { width: 100%; display: block; border-radius: 6px; }
+.controls {
+  text-align: center; padding: 8px;
+  display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;
+}
+.controls button {
+  background: #1a1a3a; color: #88ccff; border: 1px solid #444;
+  padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 0.8em;
+}
+.controls button:hover { background: #2a2a5a; }
+.controls button.on { border-color: #ffaa00; color: #ffaa00; }
+.legend {
+  display: flex; justify-content: center; gap: 16px; padding: 6px; font-size: 0.72em; color: #aaa;
+}
+.legend-item { display: flex; align-items: center; gap: 5px; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+.row { display: flex; gap: 10px; }
+.col { flex: 1; }
+.info-box {
+  background: #111128; border: 1px solid #333; border-radius: 8px;
+  padding: 10px; font-size: 0.75em; line-height: 1.6; margin-top: 8px;
+}
+.info-box .label { color: #ffaa00; font-weight: bold; }
+.meter-row { display: flex; gap: 10px; margin-bottom: 10px; }
+.meter {
+  flex: 1; background: #111128; border: 1px solid #333; border-radius: 6px; padding: 6px 10px;
+  font-size: 0.72em;
+}
+.meter-label { color: #888; margin-bottom: 2px; }
+.meter-bar-bg { background: #1a1a2a; height: 10px; border-radius: 4px; overflow: hidden; position: relative; }
+.meter-bar { height: 100%; border-radius: 4px; transition: width 0.3s; }
+.meter-val { text-align: right; font-size: 0.85em; margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<h1>プラズマの電荷中性（準中性条件）</h1>
+<div class="subtitle">プラスとマイナスの総電荷がほぼ等しい — プラズマの鉄則</div>
+
+<div class="container">
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#ff6644"></div> 陽子 p⁺ (+1)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ff44ff"></div> ホウ素 B⁵⁺ (+5)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#4488ff"></div> 電子 e⁻ (-1)</div>
+</div>
+
+<div class="controls">
+  <button onclick="setScene('neutral')" class="on" id="btnNeutral">中性状態</button>
+  <button onclick="setScene('remove')" id="btnRemove">電子を抜いてみる</button>
+  <button onclick="setScene('compare')" id="btnCompare">D-T vs p-B11</button>
+  <button onclick="togglePause()" id="btnPause">一時停止</button>
+</div>
+
+<!-- Main plasma view -->
+<div class="panel">
+  <div class="panel-title" id="mainTitle">p-B11 プラズマ — 電荷中性状態</div>
+  <canvas id="canvasMain" style="height:320px"></canvas>
+</div>
+
+<div class="meter-row">
+  <div class="meter">
+    <div class="meter-label">プラスの総電荷</div>
+    <div class="meter-bar-bg"><div class="meter-bar" id="meterPlus" style="width:50%;background:#ff6644"></div></div>
+    <div class="meter-val" id="valPlus" style="color:#ff6644">+6n</div>
+  </div>
+  <div class="meter">
+    <div class="meter-label">マイナスの総電荷</div>
+    <div class="meter-bar-bg"><div class="meter-bar" id="meterMinus" style="width:50%;background:#4488ff"></div></div>
+    <div class="meter-val" id="valMinus" style="color:#4488ff">-6n</div>
+  </div>
+  <div class="meter">
+    <div class="meter-label">正味電荷</div>
+    <div class="meter-bar-bg"><div class="meter-bar" id="meterNet" style="width:0%;background:#44ff88"></div></div>
+    <div class="meter-val" id="valNet" style="color:#44ff88">0（中性）</div>
+  </div>
+</div>
+
+<!-- Charge balance diagram -->
+<div class="row">
+  <div class="col">
+    <div class="panel">
+      <div class="panel-title">電荷バランス</div>
+      <canvas id="canvasBalance" style="height:160px"></canvas>
+    </div>
+  </div>
+  <div class="col">
+    <div class="panel">
+      <div class="panel-title" id="zeffTitle">Z_eff と制動放射ハンデ</div>
+      <canvas id="canvasZeff" style="height:160px"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="info-box" id="infoBox">
+  <span class="label">電荷中性:</span> p⁺(+1) × n個 + B⁵⁺(+5) × n個 = 電子(-1) × 6n個。
+  プラスとマイナスが釣り合っている。電荷の偏りはプラズマ振動（~1兆回/秒）で瞬時に修正される。
+</div>
+
+</div>
+
+<script>
+const cMain = document.getElementById('canvasMain');
+const cBal = document.getElementById('canvasBalance');
+const cZeff = document.getElementById('canvasZeff');
+
+function initC(c, h) { c.width = c.offsetWidth * 2; c.height = h || 640; return c.getContext('2d'); }
+const ctxMain = initC(cMain, 640);
+const ctxBal = initC(cBal, 320);
+const ctxZeff = initC(cZeff, 320);
+
+let scene = 'neutral';
+let paused = false;
+let time = 0;
+let removeProgress = 0;
+let restoreTimer = 0;
+
+function setScene(s) {
+  scene = s;
+  removeProgress = 0;
+  restoreTimer = 0;
+  document.getElementById('btnNeutral').classList.toggle('on', s === 'neutral');
+  document.getElementById('btnRemove').classList.toggle('on', s === 'remove');
+  document.getElementById('btnCompare').classList.toggle('on', s === 'compare');
+
+  if (s === 'neutral') {
+    document.getElementById('mainTitle').textContent = 'p-B11 プラズマ — 電荷中性状態';
+    document.getElementById('infoBox').innerHTML =
+      '<span class="label">電荷中性:</span> p⁺(+1) × n個 + B⁵⁺(+5) × n個 = 電子(-1) × 6n個。プラスとマイナスが釣り合っている。電荷の偏りはプラズマ振動（~1兆回/秒）で瞬時に修正される。';
+  } else if (s === 'remove') {
+    document.getElementById('mainTitle').textContent = 'p-B11 プラズマ — 電子を抜いてみると…';
+    document.getElementById('infoBox').innerHTML =
+      '<span class="label">電子排出の実験:</span> 電子を抜こうとすると、プラズマが正に帯電 → 残りの電子を引き戻す力（アンビポーラ電位）が発生 → 準中性が自動回復。だから電子排出は10〜20%が限界。';
+  } else {
+    document.getElementById('mainTitle').textContent = 'D-T vs p-B11 — 電子数の比較';
+    document.getElementById('infoBox').innerHTML =
+      '<span class="label">D-T vs p-B11:</span> D-T は電子2個/反応。p-B11は電子6個/反応。さらに Z_eff² が D-T の約18倍 → 制動放射が18倍重い。これが p-B11 の宿命。';
+  }
+}
+function togglePause() {
+  paused = !paused;
+  const b = document.getElementById('btnPause');
+  b.textContent = paused ? '再生' : '一時停止';
+  b.classList.toggle('on', paused);
+}
+
+// Particles
+const particles = [];
+// p-B11: 8 protons, 8 borons, 48 electrons (ratio 1:1:6)
+const N_P = 8, N_B = 8, N_E = 48;
+for (let i = 0; i < N_P; i++) {
+  particles.push({
+    type: 'p', charge: 1, x: Math.random()*2-1, y: Math.random()*2-1,
+    vx: (Math.random()-0.5)*0.008, vy: (Math.random()-0.5)*0.008,
+    removed: false, restoring: false
+  });
+}
+for (let i = 0; i < N_B; i++) {
+  particles.push({
+    type: 'B', charge: 5, x: Math.random()*2-1, y: Math.random()*2-1,
+    vx: (Math.random()-0.5)*0.004, vy: (Math.random()-0.5)*0.004,
+    removed: false, restoring: false
+  });
+}
+for (let i = 0; i < N_E; i++) {
+  particles.push({
+    type: 'e', charge: -1, x: Math.random()*2-1, y: Math.random()*2-1,
+    vx: (Math.random()-0.5)*0.025, vy: (Math.random()-0.5)*0.025,
+    removed: false, restoring: false
+  });
+}
+
+// DT particles for compare mode
+const dtParticles = [];
+const N_DT_D = 10, N_DT_T = 10, N_DT_E = 20;
+for (let i = 0; i < N_DT_D; i++) {
+  dtParticles.push({
+    type: 'D', charge: 1, x: Math.random()*2-1, y: Math.random()*2-1,
+    vx: (Math.random()-0.5)*0.008, vy: (Math.random()-0.5)*0.008
+  });
+}
+for (let i = 0; i < N_DT_T; i++) {
+  dtParticles.push({
+    type: 'T', charge: 1, x: Math.random()*2-1, y: Math.random()*2-1,
+    vx: (Math.random()-0.5)*0.006, vy: (Math.random()-0.5)*0.006
+  });
+}
+for (let i = 0; i < N_DT_E; i++) {
+  dtParticles.push({
+    type: 'e', charge: -1, x: Math.random()*2-1, y: Math.random()*2-1,
+    vx: (Math.random()-0.5)*0.025, vy: (Math.random()-0.5)*0.025
+  });
+}
+
+function particleColor(p) {
+  if (p.type === 'p' || p.type === 'D') return '#ff6644';
+  if (p.type === 'T') return '#ff9944';
+  if (p.type === 'B') return '#ff44ff';
+  return '#4488ff';
+}
+function particleSize(p) {
+  if (p.type === 'B') return 9;
+  if (p.type === 'p' || p.type === 'D' || p.type === 'T') return 6;
+  return 3.5;
+}
+function particleLabel(p) {
+  if (p.type === 'p') return 'p⁺';
+  if (p.type === 'D') return 'D⁺';
+  if (p.type === 'T') return 'T⁺';
+  if (p.type === 'B') return 'B⁵⁺';
+  return '';
+}
+
+function updatePS(ps) {
+  ps.forEach(p => {
+    if (p.removed) return;
+    // Jitter
+    const jScale = p.type === 'e' ? 0.004 : 0.001;
+    p.vx += (Math.random()-0.5) * jScale;
+    p.vy += (Math.random()-0.5) * jScale;
+    // Damping
+    p.vx *= 0.97;
+    p.vy *= 0.97;
+    p.x += p.vx;
+    p.y += p.vy;
+    // Bounce
+    if (p.x > 0.95 || p.x < -0.95) { p.vx *= -1; p.x = Math.max(-0.95, Math.min(0.95, p.x)); }
+    if (p.y > 0.95 || p.y < -0.95) { p.vy *= -1; p.y = Math.max(-0.95, Math.min(0.95, p.y)); }
+
+    // Restore force in remove scene
+    if (p.restoring && p.type === 'e') {
+      p.vx += -p.x * 0.003;
+      p.vy += -p.y * 0.003;
+      p.removed = false;
+    }
+  });
+}
+
+function drawPS(ctx, w, h, ps, offsetX, scaleX) {
+  const cx = offsetX || w/2;
+  const sx = (scaleX || 0.45) * w;
+  const sy = 0.42 * h;
+
+  // Draw electrons first (behind), then ions
+  const sorted = [...ps].filter(p => !p.removed).sort((a,b) => (a.type === 'e' ? -1 : 1));
+
+  sorted.forEach(p => {
+    const px = cx + p.x * sx;
+    const py = h/2 + p.y * sy;
+    const r = particleSize(p);
+    const col = particleColor(p);
+
+    // Glow
+    if (p.type !== 'e') {
+      ctx.beginPath();
+      ctx.arc(px, py, r * 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = col.replace(')', ',0.08)').replace('rgb', 'rgba');
+      ctx.fill();
+    }
+
+    ctx.beginPath();
+    ctx.arc(px, py, r, 0, Math.PI * 2);
+    ctx.fillStyle = col;
+    ctx.fill();
+
+    // Charge label for ions
+    const lbl = particleLabel(p);
+    if (lbl) {
+      ctx.font = `${r < 7 ? 9 : 11}px sans-serif`;
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.fillText(lbl, px, py - r - 3);
+    }
+  });
+}
+
+function drawMainScene(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#08081a';
+  ctx.fillRect(0, 0, w, h);
+
+  if (scene === 'compare') {
+    // Split view: D-T left, p-B11 right
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(w/2, 0);
+    ctx.lineTo(w/2, h);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#88ccff';
+    ctx.fillText('D-T（電子2個/反応）', w/4, 24);
+    ctx.fillText('p-B11（電子6個/反応）', w*3/4, 24);
+
+    drawPS(ctx, w, h, dtParticles, w/4, 0.2);
+    drawPS(ctx, w, h, particles, w*3/4, 0.2);
+  } else {
+    drawPS(ctx, w, h, particles, w/2, 0.42);
+
+    // Remove scene effects
+    if (scene === 'remove') {
+      const removedCount = particles.filter(p => p.type === 'e' && p.removed).length;
+      if (removeProgress < 1 && restoreTimer === 0) {
+        // Removing phase
+        removeProgress += 0.005;
+        const targetRemove = Math.floor(N_E * 0.4);
+        const currentRemoved = particles.filter(p => p.type === 'e' && p.removed).length;
+        if (currentRemoved < targetRemove && Math.random() < 0.05) {
+          const available = particles.filter(p => p.type === 'e' && !p.removed);
+          if (available.length > 0) {
+            available[Math.floor(Math.random() * available.length)].removed = true;
+          }
+        }
+      }
+
+      if (removeProgress >= 0.6 && restoreTimer === 0) {
+        restoreTimer = 0.001;
+      }
+
+      if (restoreTimer > 0) {
+        restoreTimer += 0.008;
+        // Electric field arrows toward center
+        const alpha = Math.max(0, 1 - restoreTimer);
+        if (alpha > 0) {
+          ctx.strokeStyle = `rgba(255,255,100,${alpha * 0.4})`;
+          ctx.lineWidth = 2;
+          for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
+            const r1 = Math.min(w, h) * 0.35;
+            const r2 = Math.min(w, h) * 0.15;
+            ctx.beginPath();
+            ctx.moveTo(w/2 + Math.cos(a)*r1, h/2 + Math.sin(a)*r1);
+            ctx.lineTo(w/2 + Math.cos(a)*r2, h/2 + Math.sin(a)*r2);
+            ctx.stroke();
+          }
+          // Label
+          ctx.font = '14px sans-serif';
+          ctx.fillStyle = `rgba(255,255,100,${alpha})`;
+          ctx.textAlign = 'center';
+          ctx.fillText('電場が電子を引き戻す！', w/2, h - 30);
+        }
+
+        // Restore electrons
+        if (restoreTimer > 0.5) {
+          particles.forEach(p => {
+            if (p.type === 'e' && p.removed) {
+              p.restoring = true;
+              p.removed = false;
+              p.x = (Math.random() - 0.5) * 1.8;
+              p.y = (Math.random() - 0.5) * 1.8;
+            }
+          });
+        }
+        if (restoreTimer > 2) {
+          restoreTimer = 0;
+          removeProgress = 0;
+          particles.forEach(p => p.restoring = false);
+        }
+      }
+
+      // Show removed count
+      const removed = particles.filter(p => p.type === 'e' && p.removed).length;
+      if (removed > 0) {
+        ctx.font = 'bold 16px sans-serif';
+        ctx.fillStyle = '#ff4444';
+        ctx.textAlign = 'center';
+        ctx.fillText(`電子 ${removed}個 除去 → プラスが余る！`, w/2, 30);
+      }
+    }
+  }
+}
+
+function drawBalance(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#0a0a18';
+  ctx.fillRect(0, 0, w, h);
+
+  const removedE = scene === 'remove' ? particles.filter(p => p.type === 'e' && p.removed).length : 0;
+  const activeE = N_E - removedE;
+  const plusTotal = N_P * 1 + N_B * 5; // 48
+  const minusTotal = activeE;
+
+  const cx = w/2, cy = h/2;
+  const barW = w * 0.35;
+  const barH = 20;
+
+  // Plus bar
+  const plusFrac = plusTotal / 48;
+  ctx.fillStyle = '#ff6644';
+  ctx.fillRect(cx - barW, cy - 30, barW * plusFrac, barH);
+  ctx.strokeStyle = '#ff664488';
+  ctx.strokeRect(cx - barW, cy - 30, barW, barH);
+  ctx.font = '12px sans-serif';
+  ctx.fillStyle = '#ff6644';
+  ctx.textAlign = 'right';
+  ctx.fillText(`+ ${plusTotal}`, cx - barW - 8, cy - 16);
+  // Label inside
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.font = '10px sans-serif';
+  ctx.fillText(`p⁺×${N_P}(+${N_P}) + B⁵⁺×${N_B}(+${N_B*5})`, cx - barW/2, cy - 17);
+
+  // Minus bar
+  const minusFrac = minusTotal / 48;
+  ctx.fillStyle = '#4488ff';
+  ctx.fillRect(cx - barW, cy + 10, barW * minusFrac, barH);
+  ctx.strokeStyle = '#4488ff88';
+  ctx.strokeRect(cx - barW, cy + 10, barW, barH);
+  ctx.fillStyle = '#4488ff';
+  ctx.textAlign = 'right';
+  ctx.fillText(`- ${minusTotal}`, cx - barW - 8, cy + 24);
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.font = '10px sans-serif';
+  ctx.fillText(`e⁻×${activeE}(-${activeE})`, cx - barW/2, cy + 23);
+
+  // Net
+  const net = plusTotal - minusTotal;
+  ctx.font = 'bold 14px sans-serif';
+  ctx.textAlign = 'center';
+  if (net === 0) {
+    ctx.fillStyle = '#44ff88';
+    ctx.fillText('差 = 0（中性）', cx + barW * 0.3, cy - 3);
+  } else {
+    ctx.fillStyle = '#ffaa00';
+    ctx.fillText(`差 = +${net}（正に帯電！）`, cx + barW * 0.3, cy - 3);
+  }
+
+  // Update meters
+  const maxQ = 48;
+  document.getElementById('meterPlus').style.width = (plusTotal/maxQ*100) + '%';
+  document.getElementById('valPlus').textContent = '+' + plusTotal;
+  document.getElementById('meterMinus').style.width = (minusTotal/maxQ*100) + '%';
+  document.getElementById('valMinus').textContent = '-' + minusTotal;
+  document.getElementById('meterNet').style.width = (Math.abs(net)/maxQ*100) + '%';
+  document.getElementById('meterNet').style.background = net === 0 ? '#44ff88' : '#ffaa00';
+  document.getElementById('valNet').textContent = net === 0 ? '0（中性）' : '+' + net + '（帯電）';
+  document.getElementById('valNet').style.color = net === 0 ? '#44ff88' : '#ffaa00';
+}
+
+function drawZeff(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#0a0a18';
+  ctx.fillRect(0, 0, w, h);
+
+  const margin = { l: 20, r: 20, t: 30, b: 30 };
+  const pw = w - margin.l - margin.r;
+  const ph = h - margin.t - margin.b;
+
+  // Bar chart: D-T vs p-B11 Z_eff²
+  const data = [
+    { label: 'D-T', zeff: 1, zeff2: 1, color: '#88ccff' },
+    { label: 'p-B11', zeff: 4.3, zeff2: 18.5, color: '#ff44ff' },
+  ];
+
+  const barW = pw * 0.25;
+  const maxVal = 20;
+
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#888';
+  ctx.fillText(scene === 'compare' ? '制動放射の重さ（Z_eff² 比較）' : 'Z_eff² — 制動放射ハンデ', w/2, 18);
+
+  data.forEach((d, i) => {
+    const x = margin.l + pw * 0.15 + i * pw * 0.45;
+    const barH = (d.zeff2 / maxVal) * ph;
+    const y = margin.t + ph - barH;
+
+    ctx.fillStyle = d.color + '44';
+    ctx.fillRect(x, y, barW, barH);
+    ctx.strokeStyle = d.color;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, barW, barH);
+
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillStyle = d.color;
+    ctx.textAlign = 'center';
+    ctx.fillText(d.label, x + barW/2, margin.t + ph + 18);
+
+    ctx.font = 'bold 14px monospace';
+    ctx.fillText('Z²=' + d.zeff2.toFixed(1), x + barW/2, y - 8);
+
+    ctx.font = '11px sans-serif';
+    ctx.fillStyle = '#aaa';
+    ctx.fillText('Z_eff=' + d.zeff.toFixed(1), x + barW/2, y - 24);
+  });
+
+  // Arrow showing 18x
+  if (scene !== 'neutral' || true) {
+    const x1 = margin.l + pw * 0.15 + barW/2;
+    const x2 = margin.l + pw * 0.6 + barW/2;
+    const arrowY = margin.t + 20;
+    ctx.strokeStyle = '#ffaa00';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x1, arrowY);
+    ctx.lineTo(x2, arrowY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x2, arrowY);
+    ctx.lineTo(x2 - 8, arrowY - 4);
+    ctx.moveTo(x2, arrowY);
+    ctx.lineTo(x2 - 8, arrowY + 4);
+    ctx.stroke();
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillStyle = '#ffaa00';
+    ctx.textAlign = 'center';
+    ctx.fillText('×18.5', (x1+x2)/2, arrowY - 8);
+  }
+}
+
+function animate() {
+  if (!paused) {
+    time += 0.016;
+    updatePS(particles);
+    updatePS(dtParticles);
+  }
+
+  drawMainScene(ctxMain, cMain.width, cMain.height);
+  drawBalance(ctxBal, cBal.width, cBal.height);
+  drawZeff(ctxZeff, cZeff.width, cZeff.height);
+
+  requestAnimationFrame(animate);
+}
+
+window.addEventListener('resize', () => {
+  initC(cMain, 640); initC(cBal, 320); initC(cZeff, 320);
+});
+
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
