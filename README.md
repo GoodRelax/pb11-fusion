@@ -10,7 +10,7 @@
 そのへんにある水素とホウ素を核融合させるだけで無限にエネルギーが出るなら、世界変わるよね。  
 バリムズい（SSS難易度）らしいけど、構造を理解するだけでも価値がある。
 
-**思考ログ（Zenn スクラップ）→ https://zenn.dev/good_relax/scraps/0a2d3a6003b2f0**
+**思考ログ（Zenn スクラップ）→** [https://zenn.dev/good_relax/scraps/0a2d3a6003b2f0](https://zenn.dev/good_relax/scraps/0a2d3a6003b2f0)
 
 ---
 
