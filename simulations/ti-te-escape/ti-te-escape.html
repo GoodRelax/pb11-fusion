@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Ti/Te 分離の抜け道</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&display=swap');
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#03030a; font-family:'Share Tech Mono',monospace;
+  display:flex; flex-direction:column; align-items:center;
+  justify-content:center; min-height:100vh; padding:16px 8px; overflow:hidden;
+}
+h1 {
+  font-family:'Bebas Neue',sans-serif; font-size:clamp(1.1rem,4vw,1.7rem);
+  letter-spacing:0.2em; color:#fff; margin-bottom:2px;
+}
+.sub { font-size:0.6rem; color:#ffffff33; letter-spacing:0.18em; margin-bottom:10px; }
+.tabs { display:flex; gap:5px; margin-bottom:10px; flex-wrap:wrap; justify-content:center; }
+.tab {
+  background:#0d0d20; border:1px solid #ffffff22; color:#888;
+  font-family:'Share Tech Mono',monospace; font-size:0.57rem;
+  letter-spacing:0.08em; padding:5px 9px; cursor:pointer; border-radius:2px;
+}
+.tab:hover { border-color:#ffffff44; color:#bbb; }
+.tab.active { background:#1a1a30; border-color:#ffffff66; color:#fff; }
+canvas { display:block; border:1px solid #ffffff0d; }
+.desc {
+  max-width:580px; width:100%; margin-top:10px; background:#06060f;
+  border-left:2px solid #888; padding:9px 14px; font-size:0.6rem;
+  line-height:1.8; color:#999; letter-spacing:0.06em;
+}
+.desc strong{color:#fff;}
+.r{color:#ff5544;} .g{color:#00ffb2;} .y{color:#ffcc00;} .b{color:#44aaff;}
+</style>
+</head>
+<body>
+<h1>Ti/Te 分離の抜け道</h1>
+<div class="sub">Rider の壁を超えられるか</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="setScene(0)">① 必要な Ti/Te 比</button>
+  <button class="tab" onclick="setScene(1)">② マクスウェル分布とは</button>
+  <button class="tab" onclick="setScene(2)">③ 抜け道① 非マクスウェル</button>
+  <button class="tab" onclick="setScene(3)">④ 抜け道② 超短Zピンチ</button>
+  <button class="tab" onclick="setScene(4)">⑤ 組み合わせの効果</button>
+</div>
+
+<canvas id="c" width="580" height="340"></canvas>
+<div class="desc" id="desc"></div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W=canvas.width, H=canvas.height;
+let scene=0, t=0;
+
+const descs=[
+  `<strong>Ti/Te = 10 では NET にならない。必要なのは Ti/Te ≈ 300</strong><br>
+  P_fusion / P_brem を計算すると：Ti/Te=10 → 0.22、Ti/Te=100 → 0.69、<span class="g">Ti/Te=300 → 1.2（やっと NET）</span><br>
+  これが Rider（1995）の主張の本質。「Ti/Te=10で可能」は単純化しすぎ。`,
+
+  `<strong>マクスウェル分布：粒子のエネルギーがばらばらに広がっている状態</strong><br>
+  核融合に貢献するのは<span class="g">ガモフピーク付近のエネルギーを持つ粒子だけ</span>。大多数は「無駄」。<br>
+  Rider の計算はこの分布を前提にしている。<span class="y">→ 電子ビームで分布を変えれば計算が変わる。</span>`,
+
+  `<strong>抜け道①：電子ビームでイオンをガモフピークに集中させる</strong><br>
+  電子ビームで陽子を特定エネルギーに加速 → <span class="g">エネルギーがガモフピーク付近に集中した非マクスウェル分布</span><br>
+  同じ「平均エネルギー」でも核融合率が 2〜5 倍高くなる可能性。<span class="y">Rider の前提を崩せる。</span>`,
+
+  `<strong>抜け道②：超短パルス Zピンチで Te を抑制する</strong><br>
+  オーム加熱（電子優先）∝ 時間。<span class="g">パルスを ns 以下にするとオーム加熱が最小化され、断熱圧縮だけが効く。</span><br>
+  → Te を上げずに Ti だけ上げられる。Ti/Te を 10→50 程度に改善できる可能性。`,
+
+  `<strong>2つを組み合わせると Rider の壁を超えられるか？</strong><br>
+  非マクスウェル：P_fusion を 2〜5 倍改善 → 必要な Ti/Te を 300→60〜150 に緩和<br>
+  超短パルス：Ti/Te を 50 程度まで改善<br>
+  <span class="y">→ まだ届かないかもしれない。でも「原理的に不可能」ではなくなっている。</span>`,
+];
+
+function setScene(n){
+  scene=n; t=0;
+  document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('active',i===n));
+  document.getElementById('desc').innerHTML=descs[n];
+}
+setScene(0);
+
+/* ── helpers ── */
+function glow(x,y,r,col){
+  const g=ctx.createRadialGradient(x,y,0,x,y,r);
+  g.addColorStop(0,col); g.addColorStop(1,col.replace(/[\d.]+\)$/,'0)'));
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+}
+
+/* ══ SCENE 0: P_fusion/P_brem vs Ti/Te ratio bar chart ══ */
+function scene0(){
+  const data=[
+    {ratio:10,  val:0.22, label:'Ti/Te=10'},
+    {ratio:30,  val:0.38, label:'Ti/Te=30'},
+    {ratio:100, val:0.69, label:'Ti/Te=100'},
+    {ratio:200, val:0.95, label:'Ti/Te=200'},
+    {ratio:300, val:1.20, label:'Ti/Te=300'},
+  ];
+
+  const bx=60, by=60, bw=W-120, bh=210;
+  const netY=by+bh*(1-1.0/1.4); // NET line at ratio=1
+
+  // Axes
+  ctx.strokeStyle='#ffffff33'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(bx,by+bh); ctx.lineTo(bx+bw,by+bh); ctx.stroke();
+
+  // NET line
+  const animNetY=by+bh*(1-1.0/1.4);
+  ctx.strokeStyle='rgba(0,255,178,0.6)'; ctx.lineWidth=1.5; ctx.setLineDash([5,4]);
+  ctx.beginPath(); ctx.moveTo(bx,animNetY); ctx.lineTo(bx+bw,animNetY); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='#00ffb2'; ctx.font='9px Share Tech Mono'; ctx.textAlign='left';
+  ctx.fillText('NET ライン (=1.0)',bx+4,animNetY-5);
+
+  // Bars
+  const barW=(bw-40)/data.length;
+  data.forEach((d,i)=>{
+    const x=bx+20+i*(barW+8);
+    const h=Math.min(bh-10,(d.val/1.4)*bh);
+    const topY=by+bh-h;
+    const isNet=d.val>=1.0;
+    const col=isNet?'rgba(0,255,178,0.8)':'rgba(255,80,60,0.7)';
+    const pulse=isNet?(0.7+0.3*Math.sin(t*0.07)):1;
+
+    // Bar
+    const grad=ctx.createLinearGradient(x,topY,x,by+bh);
+    grad.addColorStop(0,isNet?`rgba(0,255,178,${pulse*0.9})`:`rgba(255,80,60,0.9)`);
+    grad.addColorStop(1,isNet?'rgba(0,180,120,0.3)':'rgba(180,40,20,0.3)');
+    ctx.fillStyle=grad;
+    ctx.fillRect(x,topY,barW,h);
+    ctx.strokeStyle=isNet?`rgba(0,255,178,${pulse})`:'rgba(255,100,80,0.5)';
+    ctx.lineWidth=1; ctx.strokeRect(x,topY,barW,h);
+
+    if(isNet) glow(x+barW/2,topY,20,'rgba(0,255,178,0.3)');
+
+    // Value label
+    ctx.fillStyle=isNet?'#00ffb2':'#ff8877';
+    ctx.font='bold 10px Share Tech Mono'; ctx.textAlign='center';
+    ctx.fillText(d.val.toFixed(2),x+barW/2,topY-6);
+
+    // Ratio label
+    ctx.fillStyle='#ffffff66'; ctx.font='8px Share Tech Mono';
+    ctx.fillText(d.label,x+barW/2,by+bh+14);
+
+    // Check / cross
+    ctx.font='12px Share Tech Mono';
+    ctx.fillStyle=isNet?'#00ffb2':'#ff5544';
+    ctx.fillText(isNet?'✓':'✗',x+barW/2,by+bh+26);
+  });
+
+  // Y axis labels
+  ctx.fillStyle='#ffffff44'; ctx.font='8px Share Tech Mono'; ctx.textAlign='right';
+  for(let v=0;v<=1.4;v+=0.2){
+    const y=by+bh-((v/1.4)*bh);
+    ctx.fillText(v.toFixed(1),bx-4,y+3);
+    ctx.strokeStyle='#ffffff11'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(bx,y); ctx.lineTo(bx+bw,y); ctx.stroke();
+  }
+  ctx.fillStyle='#ffffff55'; ctx.font='8px Share Tech Mono'; ctx.textAlign='center';
+  ctx.fillText('P_fusion / P_brem',bx+bw/2,by+bh+42);
+}
+
+/* ══ SCENE 1: Maxwell distribution ══ */
+function scene1(){
+  const CX=W/2, CY=H/2+20;
+
+  // Maxwell-Boltzmann distribution curve
+  function maxwellPDF(v, T){
+    return v*v*Math.exp(-v*v/(2*T));
+  }
+
+  const vMax=8, T=2;
+  const plotX=60, plotY=60, plotW=W-120, plotH=200;
+
+  // Axes
+  ctx.strokeStyle='#ffffff33'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(plotX,plotY); ctx.lineTo(plotX,plotY+plotH);
+  ctx.lineTo(plotX+plotW,plotY+plotH); ctx.stroke();
+  ctx.fillStyle='#ffffff44'; ctx.font='8px Share Tech Mono';
+  ctx.textAlign='center'; ctx.fillText('速さ（エネルギー）→',plotX+plotW/2,plotY+plotH+22);
+  ctx.textAlign='right'; ctx.fillText('粒子数',plotX-4,plotY+10);
+
+  // Fill curve
+  ctx.beginPath(); ctx.moveTo(plotX,plotY+plotH);
+  let maxVal=0;
+  for(let i=0;i<=100;i++){
+    const v=i/100*vMax;
+    const y=maxwellPDF(v,T);
+    if(y>maxVal) maxVal=y;
+  }
+
+  // Gamow peak position
+  const gamowV=3.8;
+  const gamowX=plotX+gamowV/vMax*plotW;
+
+  // Draw filled Maxwell curve
+  ctx.beginPath(); ctx.moveTo(plotX,plotY+plotH);
+  for(let i=0;i<=200;i++){
+    const v=i/200*vMax;
+    const y=maxwellPDF(v,T)/maxVal;
+    const px=plotX+v/vMax*plotW;
+    const py=plotY+plotH-y*plotH*0.85;
+    i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+  }
+  ctx.lineTo(plotX+plotW,plotY+plotH); ctx.closePath();
+  const grad=ctx.createLinearGradient(plotX,plotY,plotX,plotY+plotH);
+  grad.addColorStop(0,'rgba(68,170,255,0.3)'); grad.addColorStop(1,'rgba(68,170,255,0.05)');
+  ctx.fillStyle=grad; ctx.fill();
+  ctx.strokeStyle='#44aaff'; ctx.lineWidth=2;
+  ctx.beginPath();
+  for(let i=0;i<=200;i++){
+    const v=i/200*vMax;
+    const y=maxwellPDF(v,T)/maxVal;
+    const px=plotX+v/vMax*plotW;
+    const py=plotY+plotH-y*plotH*0.85;
+    i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+  }
+  ctx.stroke();
+
+  // Gamow peak line
+  ctx.strokeStyle='rgba(0,255,178,0.8)'; ctx.lineWidth=1.5; ctx.setLineDash([4,4]);
+  ctx.beginPath(); ctx.moveTo(gamowX,plotY); ctx.lineTo(gamowX,plotY+plotH); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='#00ffb2'; ctx.font='8px Share Tech Mono'; ctx.textAlign='center';
+  ctx.fillText('ガモフピーク',gamowX,plotY-6);
+  ctx.fillText('（核融合に最適なエネルギー）',gamowX,plotY+8);
+
+  // Shade "useful" region
+  const gw=40;
+  ctx.fillStyle='rgba(0,255,178,0.12)';
+  ctx.fillRect(gamowX-gw,plotY,gw*2,plotH);
+
+  // Annotate "waste"
+  ctx.fillStyle='rgba(255,100,68,0.25)';
+  ctx.fillRect(plotX,plotY,gamowX-gw-plotX,plotH);
+  ctx.fillStyle='#ff6644'; ctx.font='8px Share Tech Mono'; ctx.textAlign='center';
+  ctx.fillText('低エネルギー粒子',plotX+(gamowX-gw-plotX)/2,CY+30);
+  ctx.fillText('核融合に貢献しない',plotX+(gamowX-gw-plotX)/2,CY+42);
+
+  ctx.fillStyle='#00ffb2'; ctx.font='8px Share Tech Mono';
+  ctx.fillText('ここだけ',gamowX,CY+30);
+  ctx.fillText('核融合する',gamowX,CY+42);
+
+  // Particles bouncing around
+  const nDots=18;
+  for(let i=0;i<nDots;i++){
+    const v=(i/nDots)*vMax*0.9+0.2;
+    const y=maxwellPDF(v,T)/maxVal;
+    const px=plotX+v/vMax*plotW;
+    const py=plotY+plotH-y*plotH*0.85;
+    const pulse=0.6+0.4*Math.sin(t*0.08+i*0.7);
+    const isUseful=Math.abs(v-gamowV)<0.6;
+    ctx.fillStyle=isUseful?`rgba(0,255,178,${pulse})`:`rgba(68,170,255,${pulse*0.5})`;
+    ctx.beginPath(); ctx.arc(px,py,isUseful?5:3,0,Math.PI*2); ctx.fill();
+  }
+}
+
+/* ══ SCENE 2: Non-Maxwellian (beam) distribution ══ */
+function scene2(){
+  const plotX=60, plotY=55, plotW=W-120, plotH=200;
+  const gamowV=3.8, vMax=8;
+
+  function maxwellPDF(v,T){ return v*v*Math.exp(-v*v/(2*T)); }
+  function beamPDF(v,v0,width){ return Math.exp(-Math.pow(v-v0,2)/(2*width*width)); }
+
+  // Axes
+  ctx.strokeStyle='#ffffff33'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(plotX,plotY); ctx.lineTo(plotX,plotY+plotH);
+  ctx.lineTo(plotX+plotW,plotY+plotH); ctx.stroke();
+  ctx.fillStyle='#ffffff44'; ctx.font='8px Share Tech Mono'; ctx.textAlign='center';
+  ctx.fillText('速さ（エネルギー）→',plotX+plotW/2,plotY+plotH+22);
+
+  let maxV=0;
+  for(let i=0;i<=100;i++){const v=i/100*vMax; maxV=Math.max(maxV,maxwellPDF(v,2));}
+
+  // Maxwell (faded)
+  ctx.globalAlpha=0.35;
+  ctx.beginPath();
+  for(let i=0;i<=200;i++){
+    const v=i/200*vMax;
+    const py=plotY+plotH-maxwellPDF(v,2)/maxV*plotH*0.8;
+    i===0?ctx.moveTo(plotX+v/vMax*plotW,py):ctx.lineTo(plotX+v/vMax*plotW,py);
+  }
+  ctx.strokeStyle='#44aaff'; ctx.lineWidth=1.5; ctx.stroke();
+  ctx.globalAlpha=1;
+
+  // Maxwell label
+  ctx.fillStyle='rgba(68,170,255,0.5)'; ctx.font='8px Share Tech Mono';
+  ctx.textAlign='left'; ctx.fillText('マクスウェル分布（従来）',plotX+4,plotY+12);
+
+  // Gamow peak
+  const gamowX=plotX+gamowV/vMax*plotW;
+  ctx.strokeStyle='rgba(0,255,178,0.5)'; ctx.lineWidth=1; ctx.setLineDash([4,4]);
+  ctx.beginPath(); ctx.moveTo(gamowX,plotY); ctx.lineTo(gamowX,plotY+plotH); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Beam distribution (animated — sharpening over time)
+  const sharpness = 0.3 + 0.25*Math.sin(t*0.025);
+  ctx.beginPath();
+  let maxB=0;
+  for(let i=0;i<=200;i++){const v=i/200*vMax; maxB=Math.max(maxB,beamPDF(v,gamowV,sharpness));}
+  for(let i=0;i<=200;i++){
+    const v=i/200*vMax;
+    const y=beamPDF(v,gamowV,sharpness)/maxB;
+    const px=plotX+v/vMax*plotW;
+    const py=plotY+plotH-y*plotH*0.85;
+    i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+  }
+  ctx.strokeStyle='#ffcc00'; ctx.lineWidth=2.5; ctx.stroke();
+
+  // Fill beam
+  ctx.beginPath(); ctx.moveTo(plotX,plotY+plotH);
+  for(let i=0;i<=200;i++){
+    const v=i/200*vMax;
+    const y=beamPDF(v,gamowV,sharpness)/maxB;
+    const px=plotX+v/vMax*plotW;
+    const py=plotY+plotH-y*plotH*0.85;
+    i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+  }
+  ctx.lineTo(plotX+plotW,plotY+plotH); ctx.closePath();
+  const bg=ctx.createLinearGradient(0,plotY,0,plotY+plotH);
+  bg.addColorStop(0,'rgba(255,204,0,0.3)'); bg.addColorStop(1,'rgba(255,204,0,0.05)');
+  ctx.fillStyle=bg; ctx.fill();
+
+  ctx.fillStyle='#ffcc00'; ctx.font='9px Share Tech Mono'; ctx.textAlign='center';
+  ctx.fillText('非マクスウェル分布（電子ビーム加速後）',plotX+plotW/2,plotY-8);
+
+  // Gain label
+  const gain=(2+2*(0.5+0.5*Math.sin(t*0.025))).toFixed(1);
+  const pulse=0.7+0.3*Math.sin(t*0.07);
+  ctx.fillStyle=`rgba(0,255,178,${pulse})`; ctx.font='bold 10px Share Tech Mono';
+  ctx.fillText(`→ P_fusion が ${gain}× 改善`,plotX+plotW/2,plotY+plotH+38);
+
+  // Gamow label
+  ctx.fillStyle='#00ffb2'; ctx.font='8px Share Tech Mono';
+  ctx.fillText('ガモフピーク',gamowX,plotY-20);
+}
+
+/* ══ SCENE 3: Ohmic vs Adiabatic heating ══ */
+function scene3(){
+  // Two columns: standard zpinch vs ultra-short
+  const cols=[
+    {x:W*0.27, label:'通常のZピンチ', pulse:'長い（100 ns+）', ohm:0.75, adiab:0.5, teColor:'#ff5544', good:false},
+    {x:W*0.73, label:'超短パルス Zピンチ', pulse:'短い（~3 ns）', ohm:0.08, adiab:0.5, teColor:'#00ffb2', good:true},
+  ];
+
+  cols.forEach(col=>{
+    const cx=col.x, top=50, bh=180, bw=60;
+
+    // Title
+    ctx.fillStyle=col.good?'#00ffb2':'#ffffff88';
+    ctx.font=`${col.good?'bold ':''  }9px Share Tech Mono`;
+    ctx.textAlign='center';
+    ctx.fillText(col.label,cx,top-20);
+    ctx.fillStyle='#ffffff44'; ctx.font='8px Share Tech Mono';
+    ctx.fillText(`パルス幅: ${col.pulse}`,cx,top-8);
+
+    // Stacked bar: ohm + adiab heating
+    const ohmH=col.ohm*bh, adH=col.adiab*bh;
+    const barX=cx-bw/2;
+
+    // Adiabatic (bottom)
+    const ag=ctx.createLinearGradient(0,top+bh-adH,0,top+bh);
+    ag.addColorStop(0,'rgba(68,170,255,0.8)'); ag.addColorStop(1,'rgba(68,170,255,0.3)');
+    ctx.fillStyle=ag; ctx.fillRect(barX,top+bh-adH,bw,adH);
+
+    // Ohmic (on top)
+    const og=ctx.createLinearGradient(0,top+bh-adH-ohmH,0,top+bh-adH);
+    og.addColorStop(0,`rgba(255,80,60,0.9)`); og.addColorStop(1,'rgba(255,80,60,0.4)');
+    ctx.fillStyle=og; ctx.fillRect(barX,top+bh-adH-ohmH,bw,ohmH);
+
+    ctx.strokeStyle='#ffffff22'; ctx.lineWidth=1; ctx.strokeRect(barX,top,bw,bh);
+
+    // Labels in bar
+    if(ohmH>18){
+      ctx.fillStyle='#fff'; ctx.font='8px Share Tech Mono'; ctx.textAlign='center';
+      ctx.fillText('オーム加熱',cx,top+bh-adH-ohmH/2+4);
+      ctx.fillText('(Te↑)',cx,top+bh-adH-ohmH/2+14);
+    }
+    if(adH>18){
+      ctx.fillStyle='#fff'; ctx.font='8px Share Tech Mono';
+      ctx.fillText('断熱圧縮',cx,top+bh-adH/2+4);
+      ctx.fillText('(Ti+Te)',cx,top+bh-adH/2+14);
+    }
+
+    // Ti/Te result
+    const ratio=col.good?'Ti/Te ~50':'Ti/Te ~10';
+    ctx.fillStyle=col.good?'#00ffb2':'#ff5544';
+    ctx.font=`bold 10px Share Tech Neki Share Tech Mono`;
+    ctx.font='bold 10px Share Tech Mono';
+    ctx.fillText(ratio,cx,top+bh+20);
+
+    if(col.good){
+      const p=0.7+0.3*Math.sin(t*0.07);
+      ctx.fillStyle=`rgba(0,255,178,${p})`; ctx.font='8px Share Tech Mono';
+      ctx.fillText('オーム加熱を最小化',cx,top+bh+34);
+      ctx.fillText('→ Te 上昇を抑制',cx,top+bh+46);
+    } else {
+      ctx.fillStyle='#ff554488'; ctx.font='8px Share Tech Mono';
+      ctx.fillText('オーム加熱が大きい',cx,top+bh+34);
+      ctx.fillText('→ Te が先に上がる',cx,top+bh+46);
+    }
+  });
+
+  // Arrow between
+  ctx.strokeStyle='#ffffff33'; ctx.lineWidth=1.5; ctx.setLineDash([4,4]);
+  ctx.beginPath(); ctx.moveTo(W*0.43,H/2); ctx.lineTo(W*0.57,H/2); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='#ffffff55'; ctx.font='8px Share Tech Mono'; ctx.textAlign='center';
+  ctx.fillText('パルスを',W/2,H/2-10);
+  ctx.fillText('短くする',W/2,H/2+2);
+
+  // Ohmic heating formula
+  ctx.fillStyle='#ffffff33'; ctx.font='8px Share Tech Mono';
+  ctx.fillText('P_ohm = J² × η × Δt　→　Δt 短くすれば小さくなる',W/2,H-10);
+}
+
+/* ══ SCENE 4: Combined effect ══ */
+function scene4(){
+  // Show the wall Ti/Te=300 and two arrows trying to reach it
+  const wallY=80, plotX=60, plotW=W-120;
+
+  // Wall line
+  const pulse=0.6+0.4*Math.sin(t*0.06);
+  ctx.strokeStyle=`rgba(255,80,60,${pulse})`; ctx.lineWidth=2; ctx.setLineDash([6,4]);
+  ctx.beginPath(); ctx.moveTo(plotX,wallY); ctx.lineTo(plotX+plotW,wallY); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='#ff5544'; ctx.font='bold 10px Share Tech Mono'; ctx.textAlign='right';
+  ctx.fillText('Rider の壁　Ti/Te ≈ 300 必要',plotX+plotW,wallY-7);
+
+  // Starting point
+  const startY=H-80;
+  ctx.fillStyle='#ffffff55'; ctx.font='8px Share Tech Mono'; ctx.textAlign='left';
+  ctx.fillText('出発点: Ti/Te = 10（何もしない場合）',plotX,startY+16);
+  ctx.strokeStyle='#ffffff22'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(plotX,startY); ctx.lineTo(plotX+plotW,startY); ctx.stroke();
+
+  // Arrow 1: non-Maxwell effect
+  const a1Y=startY-(startY-wallY)*0.45;
+  ctx.strokeStyle='rgba(255,204,0,0.8)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(W*0.32,startY); ctx.lineTo(W*0.32,a1Y); ctx.stroke();
+  // Arrowhead
+  ctx.fillStyle='#ffcc00';
+  ctx.beginPath(); ctx.moveTo(W*0.32,a1Y); ctx.lineTo(W*0.32-6,a1Y+14); ctx.lineTo(W*0.32+6,a1Y+14); ctx.closePath(); ctx.fill();
+  ctx.font='8px Share Tech Mono'; ctx.textAlign='center';
+  ctx.fillText('抜け道①',W*0.32,a1Y-12);
+  ctx.fillText('非マクスウェル',W*0.32,a1Y-2);
+  ctx.fillStyle='#ffcc0088';
+  ctx.fillText('P_fusion 2〜5×',W*0.32,(startY+a1Y)/2);
+  ctx.fillText('Ti/Te要件を緩和',W*0.32,(startY+a1Y)/2+12);
+
+  // Arrow 2: ultra-short pulse
+  const a2Y=startY-(startY-wallY)*0.25;
+  ctx.strokeStyle='rgba(0,255,178,0.8)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(W*0.62,startY); ctx.lineTo(W*0.62,a2Y); ctx.stroke();
+  ctx.fillStyle='#00ffb2';
+  ctx.beginPath(); ctx.moveTo(W*0.62,a2Y); ctx.lineTo(W*0.62-6,a2Y+14); ctx.lineTo(W*0.62+6,a2Y+14); ctx.closePath(); ctx.fill();
+  ctx.font='8px Share Tech Mono'; ctx.textAlign='center';
+  ctx.fillText('抜け道②',W*0.62,a2Y-12);
+  ctx.fillText('超短Zピンチ',W*0.62,a2Y-2);
+  ctx.fillStyle='#00ffb288';
+  ctx.fillText('Te 抑制',W*0.62,(startY+a2Y)/2);
+  ctx.fillText('Ti/Te→50程度',W*0.62,(startY+a2Y)/2+12);
+
+  // Combined arrow
+  const combY=startY-(startY-wallY)*0.62;
+  ctx.strokeStyle='rgba(255,150,255,0.9)'; ctx.lineWidth=2.5;
+  ctx.beginPath(); ctx.moveTo(W*0.5,startY); ctx.lineTo(W*0.5,combY); ctx.stroke();
+  ctx.fillStyle='rgba(255,150,255,1)';
+  ctx.beginPath(); ctx.moveTo(W*0.5,combY); ctx.lineTo(W*0.5-7,combY+16); ctx.lineTo(W*0.5+7,combY+16); ctx.closePath(); ctx.fill();
+  ctx.font='bold 9px Share Tech Mono'; ctx.textAlign='center';
+  ctx.fillText('組み合わせ',W*0.5,combY-14);
+  ctx.fillText('Ti/Te ~150?',W*0.5,combY-4);
+
+  // Gap indicator
+  const gapMid=(combY+wallY)/2;
+  ctx.fillStyle='rgba(255,80,60,0.6)'; ctx.font='8px Share Tech Mono';
+  ctx.fillText('↕ まだ足りないかも',W*0.5+50,gapMid);
+
+  // Question mark
+  const qp=0.5+0.5*Math.sin(t*0.08);
+  ctx.fillStyle=`rgba(255,200,100,${qp})`; ctx.font='bold 18px Bebas Neue';
+  ctx.fillText('?',W*0.5,gapMid-8);
+
+  // Bottom note
+  ctx.fillStyle='#ffffff44'; ctx.font='8px Share Tech Mono'; ctx.textAlign='center';
+  ctx.fillText('→ 「原理的に不可能」ではなくなっている。でも「届く」かは未実証。',W/2,H-10);
+}
+
+/* ── main loop ── */
+function frame(){
+  t++;
+  ctx.fillStyle='#03030a'; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='#ffffff06'; ctx.lineWidth=1;
+  for(let x=0;x<W;x+=30){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=30){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+  if(scene===0) scene0();
+  else if(scene===1) scene1();
+  else if(scene===2) scene2();
+  else if(scene===3) scene3();
+  else scene4();
+
+  requestAnimationFrame(frame);
+}
+frame();
+</script>
+</body>
+</html>

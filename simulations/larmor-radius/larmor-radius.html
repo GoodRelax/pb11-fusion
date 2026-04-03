@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ラーモア半径 — 電子 vs イオン</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&display=swap');
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: #03030a;
+  font-family: 'Share Tech Mono', monospace;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  min-height: 100vh; padding: 16px 8px;
+  overflow: hidden;
+}
+h1 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(1.2rem,4vw,1.8rem);
+  letter-spacing: 0.2em; color: #fff; margin-bottom: 2px;
+}
+.sub { font-size:0.6rem; color:#ffffff33; letter-spacing:0.18em; margin-bottom:10px; }
+
+.tabs { display:flex; gap:6px; margin-bottom:10px; }
+.tab {
+  background:#0d0d20; border:1px solid #ffffff22; color:#888;
+  font-family:'Share Tech Mono',monospace; font-size:0.58rem;
+  letter-spacing:0.1em; padding:5px 12px; cursor:pointer; border-radius:2px;
+}
+.tab:hover { border-color:#ffffff44; color:#bbb; }
+.tab.active { background:#1a1a30; border-color:#ffffff66; color:#fff; }
+
+canvas { display:block; border:1px solid #ffffff0d; }
+
+.desc {
+  max-width:580px; width:100%; margin-top:10px;
+  background:#06060f; border-left:2px solid #aaa;
+  padding:9px 14px; font-size:0.6rem; line-height:1.8;
+  color:#999; letter-spacing:0.06em;
+}
+.desc strong { color:#fff; }
+.e { color:#44aaff; } .i { color:#ff6644; } .b { color:#00cc88; }
+.good { color:#00ffb2; } .warn { color:#ffcc00; }
+</style>
+</head>
+<body>
+<h1>ラーモア半径 — 電子 vs イオン</h1>
+<div class="sub">磁場中の荷電粒子のサイクロトロン運動</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="setScene(0)">① 基本：軌道の違い</button>
+  <button class="tab" onclick="setScene(1)">② 磁場フィルター</button>
+  <button class="tab" onclick="setScene(2)">③ 電子排除の限界</button>
+</div>
+<canvas id="c" width="580" height="340"></canvas>
+<div class="desc" id="desc"></div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+let scene = 0, t = 0;
+
+const descs = [
+  `<strong>ローレンツ力： F = qv × B</strong><br>
+  磁場中の荷電粒子は円軌道を描く。半径（ラーモア半径）は質量に比例。<br>
+  <span class="e">電子（青）: r ≈ 0.1 mm　→　小さな円をぐるぐる</span><br>
+  <span class="i">陽子（赤）: r ≈ 4 mm　→　約43倍大きい円</span><br>
+  <span class="b">B イオン（緑）: r ≈ 数cm　→　さらに大きい</span><br>
+  回る方向は電荷の符号で逆向きになる。`,
+
+  `<strong>磁気フィルター：ラーモア半径の差を利用</strong><br>
+  磁場の強さを適切に設定すると、<span class="e">小さい軌道の電子だけが曲げられて壁に誘導</span>され、<br>
+  <span class="i">大きい軌道のイオンはほぼ直進して通り抜ける</span>。<br>
+  ホールスラスター（宇宙推進）や半導体製造でこの原理を実際に使っている。<br>
+  核融合への応用：<span class="warn">プラズマ境界で電子を選択的に壁に逃がしてTeを下げる。</span>`,
+
+  `<strong>電子排除の限界：電気的中性の壁</strong><br>
+  電子を抜くとプラズマ全体がプラスに帯電 → <span class="warn">強烈な引力が発生して電子が引き戻される</span>。<br>
+  これを「デバイ遮蔽」という。プラズマは常に電気的中性に戻ろうとする。<br>
+  現実的な落とし所：<span class="good">「全排除」ではなく「冷やす・減らす」戦略（ECR冷却、磁気シース設計）</span>。`,
+];
+
+function setScene(n) {
+  scene = n; t = 0;
+  document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('active',i===n));
+  document.getElementById('desc').innerHTML = descs[n];
+}
+setScene(0);
+
+/* ── helpers ── */
+function glow(x,y,r,color) {
+  const g = ctx.createRadialGradient(x,y,0,x,y,r);
+  g.addColorStop(0,color); g.addColorStop(1,color.replace(/[\d.]+\)$/,'0)'));
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+}
+
+function particle(x,y,r,color,label) {
+  glow(x,y,r*2.5,color.replace(')',',0.5)').replace('rgb','rgba'));
+  ctx.fillStyle=color;
+  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+  if (label) {
+    ctx.fillStyle='#fff';
+    ctx.font=`${Math.max(6,r*0.75)}px Share Tech Mono`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(label,x,y); ctx.textBaseline='alphabetic';
+  }
+}
+
+function drawBField(alpha) {
+  // B field dots (into page)
+  ctx.fillStyle = `rgba(150,150,255,${alpha*0.5})`;
+  ctx.font = '11px Share Tech Mono';
+  ctx.textAlign = 'center';
+  for (let x=30; x<W; x+=50) {
+    for (let y=30; y<H; y+=50) {
+      ctx.fillText('×', x, y+4);
+    }
+  }
+  ctx.fillStyle = `rgba(150,150,255,${alpha*0.4})`;
+  ctx.font = '8px Share Tech Mono';
+  ctx.textAlign = 'right';
+  ctx.fillText('B（紙面奥向き）', W-8, 16);
+}
+
+/* ────────────────────────────────────
+   SCENE 0: Basic orbit difference
+──────────────────────────────────── */
+
+// Three particles orbiting: electron (tiny), proton (medium), B11 (large)
+const particles0 = [
+  { cx: 145, cy: 175, r_orbit: 28,  r_particle: 3.5, color: 'rgb(68,170,255)',  label: 'e⁻',  speed: 0.09,  phase: 0,    name: '電子',   rLabel: 'r ≈ 0.1mm' },
+  { cx: 310, cy: 175, r_orbit: 75,  r_particle: 6,   color: 'rgb(255,100,68)',  label: 'p',   speed: 0.035, phase: 0,    name: '陽子',   rLabel: 'r ≈ 4mm（43×）' },
+  { cx: 480, cy: 175, r_orbit: 110, r_particle: 9,   color: 'rgb(0,200,136)',   label: '¹¹B', speed: 0.018, phase: 0,    name: 'B イオン', rLabel: 'r ≈ 数cm（さらに大）' },
+];
+
+// Orbit trails
+const trails0 = particles0.map(() => []);
+
+function scene0() {
+  drawBField(0.6);
+
+  particles0.forEach((p, pi) => {
+    p.phase += p.speed;
+    // electron goes clockwise (negative charge), ions counter-clockwise
+    const dir = pi === 0 ? -1 : 1;
+    const px = p.cx + Math.cos(p.phase * dir) * p.r_orbit;
+    const py = p.cy + Math.sin(p.phase * dir) * p.r_orbit;
+
+    // Trail
+    const trail = trails0[pi];
+    trail.push({x: px, y: py});
+    if (trail.length > 120) trail.shift();
+
+    // Draw trail
+    for (let i = 1; i < trail.length; i++) {
+      const alpha = i / trail.length * 0.5;
+      ctx.strokeStyle = p.color.replace('rgb','rgba').replace(')',`,${alpha})`);
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(trail[i-1].x, trail[i-1].y);
+      ctx.lineTo(trail[i].x, trail[i].y);
+      ctx.stroke();
+    }
+
+    // Orbit circle (dashed)
+    ctx.strokeStyle = p.color.replace('rgb','rgba').replace(')',',0.15)');
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3,4]);
+    ctx.beginPath(); ctx.arc(p.cx, p.cy, p.r_orbit, 0, Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Center dot
+    ctx.fillStyle = p.color.replace('rgb','rgba').replace(')',',0.2)');
+    ctx.beginPath(); ctx.arc(p.cx, p.cy, 3, 0, Math.PI*2); ctx.fill();
+
+    // Particle
+    particle(px, py, p.r_particle, p.color, p.label);
+
+    // Radius arrow
+    ctx.strokeStyle = p.color.replace('rgb','rgba').replace(')',',0.4)');
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2,3]);
+    ctx.beginPath(); ctx.moveTo(p.cx, p.cy); ctx.lineTo(px, py); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Labels
+    ctx.fillStyle = p.color;
+    ctx.font = '9px Share Tech Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText(p.name, p.cx, p.cy + p.r_orbit + 18);
+    ctx.fillStyle = '#ffffff66';
+    ctx.font = '8px Share Tech Mono';
+    ctx.fillText(p.rLabel, p.cx, p.cy + p.r_orbit + 30);
+  });
+
+  // Formula
+  ctx.fillStyle = '#ffffff44';
+  ctx.font = '9px Share Tech Mono';
+  ctx.textAlign = 'center';
+  ctx.fillText('r_L = mv / (qB)　　質量大 → 半径大', W/2, H-10);
+}
+
+/* ────────────────────────────────────
+   SCENE 1: Magnetic filter
+──────────────────────────────────── */
+
+// Particles coming from left, B field region in middle, collector on right
+const filterParticles = [];
+let spawnTimer = 0;
+
+function spawnFilterParticle() {
+  const isElectron = Math.random() < 0.5;
+  filterParticles.push({
+    x: 30 + Math.random()*10,
+    y: 80 + Math.random()*180,
+    vx: 2.2 + Math.random()*0.5,
+    vy: (Math.random()-0.5)*0.3,
+    isElectron,
+    r: isElectron ? 3 : 6,
+    color: isElectron ? 'rgb(68,170,255)' : 'rgb(255,100,68)',
+    label: isElectron ? 'e⁻' : 'p',
+    // curvature in B field region: electrons curve a lot, ions barely
+    inField: false,
+    collected: false,
+    trail: [],
+    curveDir: isElectron ? 1 : -1,
+    curveStrength: isElectron ? 0.08 : 0.008,
+  });
+}
+
+function scene1() {
+  // B field zone
+  const bx1 = 180, bx2 = 380;
+
+  ctx.fillStyle = 'rgba(100,100,255,0.06)';
+  ctx.fillRect(bx1, 0, bx2-bx1, H);
+  ctx.strokeStyle = 'rgba(100,100,255,0.25)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4,4]);
+  ctx.beginPath(); ctx.moveTo(bx1,0); ctx.lineTo(bx1,H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(bx2,0); ctx.lineTo(bx2,H); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // B field symbols
+  ctx.fillStyle = 'rgba(150,150,255,0.4)';
+  ctx.font = '12px Share Tech Mono';
+  ctx.textAlign = 'center';
+  for (let x=bx1+30; x<bx2; x+=50) {
+    for (let y=40; y<H-20; y+=50) {
+      ctx.fillText('×', x, y+4);
+    }
+  }
+  ctx.fillStyle = 'rgba(150,150,255,0.5)';
+  ctx.font = '8px Share Tech Mono';
+  ctx.fillText('磁場領域', (bx1+bx2)/2, H-8);
+
+  // Collector wall for electrons (bottom)
+  ctx.fillStyle = 'rgba(68,170,255,0.15)';
+  ctx.fillRect(bx1, H-55, bx2-bx1, 50);
+  ctx.strokeStyle = 'rgba(68,170,255,0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(bx1,H-55); ctx.lineTo(bx2,H-55); ctx.stroke();
+  ctx.fillStyle = 'rgba(68,170,255,0.8)';
+  ctx.font = '8px Share Tech Mono';
+  ctx.textAlign = 'center';
+  ctx.fillText('電子コレクター（壁）', (bx1+bx2)/2, H-38);
+  ctx.fillText('⚡ 電子を回収→電気に変換', (bx1+bx2)/2, H-26);
+
+  // Spawn
+  spawnTimer++;
+  if (spawnTimer % 22 === 0) spawnFilterParticle();
+
+  // Update & draw
+  for (let i = filterParticles.length-1; i >= 0; i--) {
+    const p = filterParticles[i];
+    if (p.collected) { filterParticles.splice(i,1); continue; }
+
+    // In field zone: apply curvature
+    if (p.x > bx1 && p.x < bx2) {
+      p.vy += p.curveDir * p.curveStrength * (p.isElectron ? 1.5 : 0.3);
+    }
+
+    p.x += p.vx; p.y += p.vy;
+    p.trail.push({x:p.x, y:p.y});
+    if (p.trail.length > 60) p.trail.shift();
+
+    // Collected by bottom wall
+    if (p.isElectron && p.y > H-58 && p.x > bx1 && p.x < bx2) {
+      // Flash
+      glow(p.x, H-58, 12, 'rgba(68,170,255,0.6)');
+      p.collected = true; continue;
+    }
+
+    // Out of bounds
+    if (p.x > W+10 || p.y < -10 || p.y > H+10) { filterParticles.splice(i,1); continue; }
+
+    // Trail
+    for (let j=1; j<p.trail.length; j++) {
+      const a = j/p.trail.length*0.4;
+      ctx.strokeStyle = p.color.replace('rgb','rgba').replace(')',`,${a})`);
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(p.trail[j-1].x,p.trail[j-1].y); ctx.lineTo(p.trail[j].x,p.trail[j].y); ctx.stroke();
+    }
+
+    particle(p.x, p.y, p.r, p.color, p.label);
+  }
+
+  // Labels
+  ctx.fillStyle = '#44aaff';
+  ctx.font = '9px Share Tech Mono'; ctx.textAlign = 'left';
+  ctx.fillText('● 電子 → 強く曲げられて壁へ', 10, 22);
+  ctx.fillStyle = '#ff6644';
+  ctx.fillText('● イオン → ほぼ直進して通過', 10, 36);
+
+  ctx.fillStyle = '#00ffb2';
+  ctx.font = '8px Share Tech Mono'; ctx.textAlign = 'right';
+  ctx.fillText('→ イオンだけ通過', W-10, 22);
+  ctx.fillText('→ Te を下げられる', W-10, 34);
+}
+
+/* ────────────────────────────────────
+   SCENE 2: Debye shielding / pull-back
+──────────────────────────────────── */
+
+// Show: electrons being pulled out, then massive E field pulling back
+let extractPhase = 0;
+
+const coreIons = Array.from({length:16}, (_, i) => {
+  const angle = (i/16)*Math.PI*2;
+  const r = 30 + Math.random()*40;
+  return { x: W/2 + Math.cos(angle)*r, y: H/2 + Math.sin(angle)*r,
+           vx: (Math.random()-0.5)*0.3, vy: (Math.random()-0.5)*0.3,
+           r: 7, color:'rgb(255,100,68)', label:'p' };
+});
+
+const coreEles = Array.from({length:24}, (_, i) => {
+  const angle = (i/24)*Math.PI*2 + 0.2;
+  const r = 35 + Math.random()*45;
+  return { x: W/2 + Math.cos(angle)*r, y: H/2 + Math.sin(angle)*r,
+           angle: angle, r_orbit: r,
+           vx: (Math.random()-0.5)*0.8, vy: (Math.random()-0.5)*0.8,
+           r: 3.5, color:'rgb(68,170,255)', label:'e⁻',
+           extracted: false, extractT: 0, pullBack: false };
+});
+
+function scene2() {
+  extractPhase = Math.min(1, t/300);
+
+  const CX = W/2, CY = H/2;
+
+  drawBField(0.35);
+
+  // Plasma boundary
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4,5]);
+  ctx.beginPath(); ctx.arc(CX, CY, 95, 0, Math.PI*2); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Electric field lines (appear as electrons are removed)
+  if (extractPhase > 0.3) {
+    const eAlpha = (extractPhase - 0.3) / 0.7;
+    const nLines = 12;
+    for (let i=0; i<nLines; i++) {
+      const angle = (i/nLines)*Math.PI*2;
+      const r1 = 100, r2 = 160;
+      const x1 = CX + Math.cos(angle)*r1, y1 = CY + Math.sin(angle)*r1;
+      const x2 = CX + Math.cos(angle)*r2, y2 = CY + Math.sin(angle)*r2;
+      ctx.strokeStyle = `rgba(255,200,50,${eAlpha*0.5})`;
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([3,3]);
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Arrow (inward: field pulls electrons back)
+      ctx.fillStyle = `rgba(255,200,50,${eAlpha*0.8})`;
+      ctx.beginPath();
+      ctx.moveTo(x1,y1);
+      const nx=Math.cos(angle), ny=Math.sin(angle);
+      ctx.lineTo(x1+nx*10-ny*4, y1+ny*10+nx*4);
+      ctx.lineTo(x1+nx*10+ny*4, y1+ny*10-nx*4);
+      ctx.closePath(); ctx.fill();
+    }
+
+    // Label
+    ctx.fillStyle = `rgba(255,200,50,${eAlpha})`;
+    ctx.font = 'bold 9px Share Tech Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText('電場が発生！', CX, CY - 118);
+    ctx.font = '8px Share Tech Mono';
+    ctx.fillText('電子を引き戻す力', CX, CY - 106);
+  }
+
+  // Ions stay in center
+  for (const p of coreIons) {
+    p.vx += (CX - p.x)*0.001; p.vy += (CY - p.y)*0.001;
+    p.vx *= 0.96; p.vy *= 0.96;
+    p.x += p.vx; p.y += p.vy;
+    particle(p.x, p.y, p.r, p.color, p.label);
+  }
+
+  // Electrons: some get extracted early, then pulled back
+  for (const p of coreEles) {
+    if (!p.extracted) {
+      // Drift outward slowly at first
+      const dx = p.x - CX, dy = p.y - CY;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 140 || (extractPhase > 0.15 && Math.random() < 0.005)) {
+        p.extracted = true;
+        p.extractT = 0;
+      } else {
+        p.vx += (Math.random()-0.5)*0.15;
+        p.vy += (Math.random()-0.5)*0.15;
+        // slight outward push
+        if (extractPhase > 0.1) {
+          p.vx += (dx/dist)*extractPhase*0.05;
+          p.vy += (dy/dist)*extractPhase*0.05;
+        }
+        // pull back if charge building
+        if (extractPhase > 0.3) {
+          const pullStrength = (extractPhase-0.3)*0.04;
+          p.vx -= (dx/dist)*pullStrength;
+          p.vy -= (dy/dist)*pullStrength;
+        }
+        p.vx *= 0.94; p.vy *= 0.94;
+        p.x += p.vx; p.y += p.vy;
+      }
+    } else {
+      // Extracted — arc outward then get pulled back
+      p.extractT++;
+      const progress = Math.min(1, p.extractT/60);
+      if (progress < 0.5) {
+        p.vx *= 1.01; p.vy *= 1.01;
+        p.x += p.vx*1.5; p.y += p.vy*1.5;
+      } else {
+        // Pull back
+        const dx = CX - p.x, dy = CY - p.y;
+        const dist = Math.hypot(dx,dy);
+        if (dist > 5) {
+          p.vx += (dx/dist)*0.25;
+          p.vy += (dy/dist)*0.25;
+        }
+        p.vx *= 0.9; p.vy *= 0.9;
+        p.x += p.vx; p.y += p.vy;
+        if (dist < 20) p.extracted = false;
+      }
+    }
+    particle(p.x, p.y, p.r, p.color, p.label);
+  }
+
+  // Plus charge buildup indicator
+  if (extractPhase > 0.2) {
+    const a = (extractPhase-0.2)/0.8;
+    ctx.fillStyle = `rgba(255,100,68,${a*0.6})`;
+    ctx.font = `bold ${14+a*8}px Share Tech Mono`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('+', CX+8, CY+6);
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = `rgba(255,100,68,${a*0.5})`;
+    ctx.font = '8px Share Tech Mono';
+    ctx.fillText('プラスに帯電', CX, CY+50);
+  }
+
+  // Debye length label
+  ctx.fillStyle = '#ffffff44';
+  ctx.font = '8px Share Tech Mono'; ctx.textAlign = 'left';
+  ctx.fillText('デバイ遮蔽：プラズマは常に中性に戻ろうとする', 10, H-10);
+}
+
+/* ── main loop ── */
+function frame() {
+  t++;
+  ctx.fillStyle = '#03030a';
+  ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle = '#ffffff06'; ctx.lineWidth = 1;
+  for (let x=0;x<W;x+=30){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for (let y=0;y<H;y+=30){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+  if (scene===0) scene0();
+  else if (scene===1) scene1();
+  else scene2();
+
+  requestAnimationFrame(frame);
+}
+frame();
+</script>
+</body>
+</html>

@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>二温度プラズマ</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&display=swap');
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: #03030a;
+  font-family: 'Share Tech Mono', monospace;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 16px 8px;
+  overflow: hidden;
+}
+
+h1 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(1.2rem, 4vw, 1.8rem);
+  letter-spacing: 0.2em;
+  color: #fff;
+  margin-bottom: 2px;
+}
+.sub {
+  font-size: 0.6rem;
+  color: #ffffff33;
+  letter-spacing: 0.18em;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.tab {
+  background: #0d0d20;
+  border: 1px solid #ffffff22;
+  color: #888;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  padding: 5px 12px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.2s;
+}
+.tab:hover { border-color: #ffffff44; color: #bbb; }
+.tab.active { background: #1a1a30; border-color: #ffffff66; color: #fff; }
+
+canvas { display: block; border: 1px solid #ffffff0d; }
+
+.desc {
+  max-width: 560px;
+  width: 100%;
+  margin-top: 10px;
+  background: #06060f;
+  border-left: 2px solid #aaa;
+  padding: 9px 14px;
+  font-size: 0.6rem;
+  line-height: 1.8;
+  color: #999;
+  letter-spacing: 0.06em;
+  transition: border-color 0.3s;
+}
+.desc strong { color: #fff; }
+.hi { color: #ff6644; }
+.lo { color: #44aaff; }
+.eq { color: #ffcc00; }
+</style>
+</head>
+<body>
+
+<h1>二温度プラズマ</h1>
+<div class="sub">Ti（イオン温度）と Te（電子温度）の関係</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="setScene(0)">① 温度とは速さ</button>
+  <button class="tab" onclick="setScene(1)">② 二温度状態</button>
+  <button class="tab" onclick="setScene(2)">③ 熱平衡化（均等化）</button>
+  <button class="tab" onclick="setScene(3)">④ 制動放射との関係</button>
+</div>
+
+<canvas id="c" width="560" height="340"></canvas>
+<div class="desc" id="desc"></div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+let scene = 0, t = 0;
+
+/* ── particles ── */
+// Scene 0: show ions and electrons with different speeds
+// Scene 1: two-temp state, ions fast, electrons slow
+// Scene 2: equilibration over time
+// Scene 3: bremsstrahlung from electrons only
+
+const descs = [
+  `<strong>温度 = 粒子の速さの平均</strong><br>
+  <span class="hi">赤い大きい粒子 = イオン（p や B）</span>　重くてゆっくり<br>
+  <span class="lo">青い小さい粒子 = 電子</span>　軽くて速い<br>
+  温度が高いほど粒子が速く飛び回る。プラズマでは<strong>イオンと電子が別々に温度を持てる</strong>。`,
+
+  `<strong>二温度プラズマ： Ti ≫ Te の状態</strong><br>
+  <span class="hi">イオン（赤）が超高速 → Ti = 数十億℃</span>　核融合を起こせる<br>
+  <span class="lo">電子（青）はゆっくり → Te = 数億℃</span>　制動放射が少ない<br>
+  この状態を維持できれば<strong>制動放射ロスを大幅に抑えられる</strong>。`,
+
+  `<strong>熱平衡化：ほっとくと Ti ≈ Te になってしまう</strong><br>
+  イオンと電子は電気的に引き合い<strong>クーロン散乱</strong>でエネルギーをやりとりする。<br>
+  速いイオンが遅い電子にエネルギーを渡し続け、<span class="eq">やがて同じ温度に均等化</span>。<br>
+  この時定数 τ_eq ≈ <strong>1マイクロ秒</strong>。Zピンチ圧縮（数ns）より100倍遅い。`,
+
+  `<strong>制動放射を出すのは電子だけ</strong><br>
+  電子が加速度運動するたびにX線（制動放射）を放出してエネルギーが逃げる。<br>
+  <span class="lo">Te が低い → 制動放射が少ない</span>（P_brem ∝ Te^(1/2)）<br>
+  <span class="hi">Ti は制動放射に関係しない</span>　→ イオンだけ熱くすれば損失を最小化できる。`,
+];
+
+function setScene(n) {
+  scene = n;
+  t = 0;
+  document.querySelectorAll('.tab').forEach((b,i) => b.classList.toggle('active', i===n));
+  document.getElementById('desc').innerHTML = descs[n];
+}
+setScene(0);
+
+/* ── particle systems ── */
+
+// Scene 0: Separate boxes showing T=speed
+function makeParticles(n, speedMult, r, color, cx, cy, boxW, boxH) {
+  return Array.from({length: n}, () => {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = (0.5 + Math.random() * 0.5) * speedMult;
+    return {
+      x: cx + (Math.random()-0.5) * boxW * 0.8,
+      y: cy + (Math.random()-0.5) * boxH * 0.8,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      r, color,
+      cx, cy, boxW, boxH,
+    };
+  });
+}
+
+// Ions: slow, large
+const ionsS0_hot = makeParticles(10, 3.5, 10, '#ff6644', 140, 170, 220, 260);
+const ionsS0_cold = makeParticles(10, 1.0, 10, '#ff6644', 420, 170, 220, 260);
+
+// Electrons: fast, small
+const elesS0_hot = makeParticles(18, 7.0, 4, '#44aaff', 140, 170, 220, 260);
+const elesS0_cold = makeParticles(18, 2.5, 4, '#44aaff', 420, 170, 220, 260);
+
+// Scene 1: two-temp — ions fast, electrons slow
+const ionsS1 = makeParticles(14, 4.0, 9, '#ff6644', W/2, H/2, 440, 280);
+const elesS1 = makeParticles(22, 1.2, 3.5, '#44aaff', W/2, H/2, 440, 280);
+
+// Scene 2: equilibration — ions start fast, electrons slow, they converge
+const ionsS2 = makeParticles(12, 4.2, 9, '#ff6644', W/2, H/2, 400, 250);
+const elesS2 = makeParticles(20, 1.2, 3.5, '#44aaff', W/2, H/2, 400, 250);
+
+// Scene 3: bremsstrahlung
+const ionsS3 = makeParticles(10, 4.0, 9, '#ff6644', W/2, H/2, 400, 250);
+const elesS3 = makeParticles(18, 1.2, 3.5, '#44aaff', W/2, H/2, 400, 250);
+
+function updateParticles(parts, speedDecay) {
+  for (const p of parts) {
+    p.x += p.vx;
+    p.y += p.vy;
+    const hw = p.boxW/2, hh = p.boxH/2;
+    if (p.x < p.cx - hw + p.r || p.x > p.cx + hw - p.r) p.vx *= -1;
+    if (p.y < p.cy - hh + p.r || p.y > p.cy + hh - p.r) p.vy *= -1;
+    if (speedDecay) {
+      p.vx *= speedDecay;
+      p.vy *= speedDecay;
+      // keep minimum speed
+      const spd = Math.hypot(p.vx, p.vy);
+      if (spd < 0.2) { p.vx = (Math.random()-0.5)*0.4; p.vy = (Math.random()-0.5)*0.4; }
+    }
+  }
+}
+
+function drawParticle(p, alpha) {
+  ctx.globalAlpha = alpha || 1;
+  const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r*2.2);
+  g.addColorStop(0, p.color + 'cc');
+  g.addColorStop(1, p.color + '00');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(p.x, p.y, p.r*2.2, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = p.color;
+  ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+function drawBox(cx, cy, w, h, color, label, temp) {
+  ctx.strokeStyle = color + '44';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(cx-w/2, cy-h/2, w, h);
+  ctx.fillStyle = color + '18';
+  ctx.fillRect(cx-w/2, cy-h/2, w, h);
+  ctx.fillStyle = color;
+  ctx.font = '9px Share Tech Mono';
+  ctx.textAlign = 'center';
+  ctx.fillText(label, cx, cy - h/2 - 6);
+  if (temp) {
+    ctx.fillStyle = '#ffffff88';
+    ctx.font = '9px Share Tech Mono';
+    ctx.fillText(temp, cx, cy + h/2 + 14);
+  }
+}
+
+function avgSpeed(parts) {
+  return parts.reduce((s,p) => s + Math.hypot(p.vx, p.vy), 0) / parts.length;
+}
+
+/* ── thermometer helper ── */
+function drawThermometer(x, y, h, val, maxVal, color, label) {
+  const fillH = (val / maxVal) * h;
+  ctx.fillStyle = '#ffffff11';
+  ctx.fillRect(x-8, y-h, 16, h);
+  ctx.strokeStyle = '#ffffff22';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x-8, y-h, 16, h);
+
+  const grad = ctx.createLinearGradient(x, y, x, y-fillH);
+  grad.addColorStop(0, color+'66');
+  grad.addColorStop(1, color+'ee');
+  ctx.fillStyle = grad;
+  ctx.fillRect(x-8, y-fillH, 16, fillH);
+
+  ctx.fillStyle = color;
+  ctx.font = '9px Share Tech Mono';
+  ctx.textAlign = 'center';
+  ctx.fillText(label, x, y+14);
+  ctx.fillStyle = '#fff';
+  ctx.fillText((val*100).toFixed(0)+'%', x, y-h-6);
+}
+
+/* ── scenes ── */
+
+function scene0() {
+  // Two boxes: HIGH TEMP (left) LOW TEMP (right)
+  // Show ions AND electrons in each box
+  drawBox(140, 170, 220, 260, '#ffffff', 'HIGH TEMP', 'T 高い');
+  drawBox(420, 170, 220, 260, '#ffffff', 'LOW TEMP', 'T 低い');
+
+  updateParticles(ionsS0_hot);
+  updateParticles(ionsS0_cold);
+  updateParticles(elesS0_hot);
+  updateParticles(elesS0_cold);
+
+  for (const p of [...ionsS0_hot, ...elesS0_hot]) drawParticle(p);
+  for (const p of [...ionsS0_cold, ...elesS0_cold]) drawParticle(p);
+
+  // speed arrows
+  ctx.fillStyle = '#ffffff66';
+  ctx.font = '8px Share Tech Mono';
+  ctx.textAlign = 'center';
+  ctx.fillText('粒子が速い → 温度が高い', 140, 320);
+  ctx.fillText('粒子が遅い → 温度が低い', 420, 320);
+
+  // legend
+  ctx.fillStyle = '#ff6644';
+  ctx.font = '9px Share Tech Mono';
+  ctx.textAlign = 'left';
+  ctx.fillText('● イオン（大・重い）', 16, 20);
+  ctx.fillStyle = '#44aaff';
+  ctx.fillText('● 電子（小・軽い）', 16, 34);
+}
+
+function scene1() {
+  // Single plasma, ions fast (hot), electrons slow (cold)
+  drawBox(W/2, H/2, 440, 280, '#ffffff', 'プラズマ', '');
+
+  updateParticles(ionsS1);
+  updateParticles(elesS1);
+
+  for (const p of elesS1) drawParticle(p);
+  for (const p of ionsS1) drawParticle(p);
+
+  // Ti/Te ratio display
+  const ti = 10, te = 1;
+  drawThermometer(W-60, 280, 200, ti/10, 1.2, '#ff6644', 'Ti');
+  drawThermometer(W-30, 280, 200, te/10, 1.2, '#44aaff', 'Te');
+
+  ctx.fillStyle = '#ffffff88';
+  ctx.font = '9px Share Tech Mono';
+  ctx.textAlign = 'center';
+  ctx.fillText('Ti / Te = 10', W-45, 90);
+
+  ctx.fillStyle = '#ff6644';
+  ctx.font = '8px Share Tech Mono';
+  ctx.textAlign = 'left';
+  ctx.fillText('Ti ~300億℃（核融合OK）', 14, 20);
+  ctx.fillStyle = '#44aaff';
+  ctx.fillText('Te ~30億℃（制動放射少）', 14, 34);
+
+  ctx.fillStyle = '#00ffb2';
+  ctx.font = 'bold 9px Share Tech Mono';
+  ctx.textAlign = 'center';
+  ctx.fillText('✓ この状態を維持できれば制動放射ロスが減る', W/2, H-12);
+}
+
+// Scene 2: equilibration
+let eqProgress = 0; // 0→1
+function scene2() {
+  eqProgress = Math.min(1, t / 400);
+  const ease = 1 - Math.pow(1 - eqProgress, 2);
+
+  drawBox(W/2, H/2-20, 420, 240, '#ffffff', '', '');
+
+  // Ions slow down, electrons speed up
+  const ionSpeedMult = 1 - ease * 0.55;
+  const eleSpeedMult = 1 + ease * 1.8;
+
+  updateParticles(ionsS2);
+  updateParticles(elesS2);
+
+  // Periodically transfer energy: ions → electrons
+  if (t % 18 === 0) {
+    const ion = ionsS2[Math.floor(Math.random()*ionsS2.length)];
+    const ele = elesS2[Math.floor(Math.random()*elesS2.length)];
+    // collision flash
+    const mx = (ion.x + ele.x)/2, my = (ion.y + ele.y)/2;
+    ctx.fillStyle = 'rgba(255,220,100,0.4)';
+    ctx.beginPath(); ctx.arc(mx, my, 12, 0, Math.PI*2); ctx.fill();
+    // slow ion, speed up electron
+    ion.vx *= (0.88 + 0.12*ease);
+    ion.vy *= (0.88 + 0.12*ease);
+    ele.vx *= (1.05 + ease*0.1);
+    ele.vy *= (1.05 + ease*0.1);
+  }
+
+  // Apply gradual speed limits
+  ionsS2.forEach(p => {
+    const spd = Math.hypot(p.vx,p.vy);
+    const target = 4.2 * (1 - ease*0.5) + ease*2.0;
+    if (spd > target*1.2) { p.vx *= 0.97; p.vy *= 0.97; }
+  });
+  elesS2.forEach(p => {
+    const spd = Math.hypot(p.vx,p.vy);
+    const target = 1.2 * (1 + ease*1.5);
+    if (spd < target*0.8 && spd > 0.1) { p.vx *= 1.03; p.vy *= 1.03; }
+  });
+
+  for (const p of elesS2) drawParticle(p);
+  for (const p of ionsS2) drawParticle(p);
+
+  // Thermometers showing equilibration
+  const tiVal = 1.0 - ease*0.45;
+  const teVal = 0.1 + ease*0.45;
+  drawThermometer(W-65, 290, 220, tiVal, 1.1, '#ff6644', 'Ti');
+  drawThermometer(W-35, 290, 220, teVal, 1.1, '#44aaff', 'Te');
+
+  const ratio = (tiVal/teVal).toFixed(1);
+  ctx.fillStyle = ease < 0.5 ? '#ff6644' : (ease < 0.85 ? '#ffcc00' : '#ff4444');
+  ctx.font = 'bold 10px Share Tech Mono';
+  ctx.textAlign = 'center';
+  ctx.fillText(`Ti / Te = ${ratio}`, W-50, 78);
+
+  if (ease < 0.15) {
+    ctx.fillStyle = '#00ffb2';
+    ctx.font = '8px Share Tech Mono';
+    ctx.fillText('二温度状態（理想）', W-50, 66);
+  } else if (ease > 0.85) {
+    ctx.fillStyle = '#ff4444';
+    ctx.font = '8px Share Tech Mono';
+    ctx.fillText('均等化してしまった', W-50, 66);
+  }
+
+  // Arrow showing energy flow
+  if (ease > 0.1) {
+    const alpha = Math.min(1, ease*3);
+    ctx.strokeStyle = `rgba(255,200,50,${alpha*0.6})`;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3,3]);
+    ctx.beginPath();
+    ctx.moveTo(W-65, 200);
+    ctx.lineTo(W-35, 200);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = `rgba(255,200,50,${alpha*0.8})`;
+    ctx.font = '7px Share Tech Mono';
+    ctx.fillText('エネルギー移動→', W-50, 195);
+  }
+
+  // Time indicator
+  const tau = (eqProgress * 1.2).toFixed(2);
+  ctx.fillStyle = '#ffffff44';
+  ctx.font = '9px Share Tech Mono';
+  ctx.textAlign = 'left';
+  ctx.fillText(`経過時間: ${tau} μs`, 12, 18);
+  ctx.fillText('τ_eq ≈ 1 μs', 12, 32);
+}
+
+// Scene 3: Bremsstrahlung — electrons emit X-rays, ions don't
+const xrays = [];
+function scene3() {
+  drawBox(W/2, H/2-10, 420, 260, '#ffffff', 'プラズマ（Te が低い状態）', '');
+
+  updateParticles(ionsS3);
+  updateParticles(elesS3);
+
+  // Electrons occasionally emit X-rays
+  if (t % 12 === 0) {
+    const ele = elesS3[Math.floor(Math.random()*elesS3.length)];
+    xrays.push({
+      x: ele.x, y: ele.y,
+      angle: Math.random() * Math.PI * 2,
+      len: 0,
+      age: 0,
+      maxLen: 80 + Math.random()*60,
+    });
+  }
+
+  // Update and draw X-rays
+  for (let i = xrays.length-1; i >= 0; i--) {
+    const xr = xrays[i];
+    xr.len = Math.min(xr.maxLen, xr.len + 4);
+    xr.age++;
+    if (xr.age > 35) { xrays.splice(i,1); continue; }
+    const alpha = Math.max(0, 1 - xr.age/35);
+
+    // Zigzag X-ray
+    ctx.strokeStyle = `rgba(255,255,100,${alpha*0.8})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    const steps = 7;
+    ctx.moveTo(xr.x, xr.y);
+    for (let s = 1; s <= steps; s++) {
+      const fx = xr.x + Math.cos(xr.angle) * xr.len * s/steps;
+      const fy = xr.y + Math.sin(xr.angle) * xr.len * s/steps;
+      const side = (s%2===0?1:-1)*5;
+      ctx.lineTo(fx + Math.cos(xr.angle+Math.PI/2)*side,
+                 fy + Math.sin(xr.angle+Math.PI/2)*side);
+    }
+    ctx.stroke();
+
+    if (xr.age > 20 && xr.len >= xr.maxLen) {
+      const ex = xr.x + Math.cos(xr.angle)*xr.len;
+      const ey = xr.y + Math.sin(xr.angle)*xr.len;
+      ctx.fillStyle = `rgba(255,255,100,${alpha})`;
+      ctx.font = '7px Share Tech Mono';
+      ctx.textAlign = 'center';
+      ctx.fillText('X線', ex, ey-6);
+    }
+  }
+
+  for (const p of elesS3) drawParticle(p);
+  for (const p of ionsS3) drawParticle(p, 0.9);
+
+  // Ions: NO X-ray label
+  ctx.fillStyle = '#ff6644';
+  ctx.font = '8px Share Tech Mono';
+  ctx.textAlign = 'left';
+  ctx.fillText('● イオン → X線 出さない', 12, 18);
+  ctx.fillStyle = '#44aaff';
+  ctx.fillText('● 電子  → X線 出す', 12, 32);
+
+  // Formula
+  ctx.fillStyle = '#ffffff66';
+  ctx.font = '9px Share Tech Mono';
+  ctx.textAlign = 'right';
+  ctx.fillText('P_brem ∝ Te^(1/2)', W-10, 18);
+  ctx.fillText('Ti は無関係', W-10, 32);
+
+  // Loss meter
+  const lossY = H - 50;
+  ctx.fillStyle = '#ffffff11';
+  ctx.fillRect(12, lossY, 280, 16);
+  ctx.fillStyle = '#ff4444';
+  ctx.fillRect(12, lossY, 90, 16); // low Te → small loss
+  ctx.fillStyle = '#fff';
+  ctx.font = '8px Share Tech Mono';
+  ctx.textAlign = 'left';
+  ctx.fillText('制動放射ロス', 14, lossY+11);
+  ctx.fillStyle = '#00ffb2';
+  ctx.fillText('← Te が低いので少ない', 100, lossY+11);
+
+  ctx.fillStyle = '#00ffb2';
+  ctx.font = 'bold 9px Share Tech Mono';
+  ctx.textAlign = 'center';
+  ctx.fillText('Ti だけ高く、Te を低く保つ = 核融合しながら損失を抑える', W/2, H-12);
+}
+
+/* ── main loop ── */
+function frame() {
+  t++;
+  ctx.fillStyle = '#03030a';
+  ctx.fillRect(0,0,W,H);
+
+  // grid
+  ctx.strokeStyle = '#ffffff06';
+  ctx.lineWidth = 1;
+  for (let x=0; x<W; x+=30) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for (let y=0; y<H; y+=30) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+  if (scene===0) scene0();
+  else if (scene===1) scene1();
+  else if (scene===2) scene2();
+  else scene3();
+
+  requestAnimationFrame(frame);
+}
+frame();
+</script>
+</body>
+</html>
