@@ -162,4 +162,4 @@ Phase 3（燃焼）:
 - [`fusion-timescales.md`](fusion-timescales.md) — タイムスケールの整理
 - [`larmor-radius.md`](larmor-radius.md) — 電子排除の可能性
 - [`L1-physics.md`](L1-physics.md) — 制動放射問題の全体像
-- アニメーション: `simulations/ti-te-escape.html`
+- アニメーション: [▶ ti-te-escape.html](https://goodrelax.github.io/pb11-fusion/simulations/ti-te-escape.html)

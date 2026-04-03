@@ -151,4 +151,4 @@ $$
 - [`ti-te-escape.md`](ti-te-escape.md) — 制動放射の抜け道
 - [`fusion-timescales.md`](fusion-timescales.md) — 不安定性成長 vs 燃焼時間
 - [`L1-physics.md`](L1-physics.md) — 物理層の全体像
-- アニメーション: `simulations/compression-topology.html`
+- アニメーション: [▶ compression-topology.html](https://goodrelax.github.io/pb11-fusion/simulations/compression-topology.html)

@@ -180,4 +180,4 @@ Phase 4（排気）:
 
 - [`two-temp-plasma.md`](two-temp-plasma.md) — Ti/Te 分離の意味
 - [`L1-physics.md`](L1-physics.md) — L1-2 制動放射問題の全体像
-- アニメーション: `simulations/larmor-radius.html`
+- アニメーション: [▶ larmor-radius.html](https://goodrelax.github.io/pb11-fusion/simulations/larmor-radius.html)

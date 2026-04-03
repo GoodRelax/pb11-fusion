@@ -225,4 +225,4 @@ $$
 - [`two-temp-plasma.md`](two-temp-plasma.md) — Ti/Te 分離の基礎
 - [`electron-exhaust.md`](electron-exhaust.md) — 抜け道③
 - [`L1-physics.md`](L1-physics.md) — 制動放射問題の全体像
-- アニメーション: `simulations/maxwell-distribution.html`
+- アニメーション: [▶ maxwell-distribution.html](https://goodrelax.github.io/pb11-fusion/simulations/maxwell-distribution.html)

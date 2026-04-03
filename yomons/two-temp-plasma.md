@@ -114,5 +114,5 @@ TAE Technologies は「防げる」として実験を継続中。
 ## 関連
 
 - [`L1-physics.md`](L1-physics.md) — L1-2 制動放射問題の全体像
-- シミュレーション: `simulations/pb11-walls.html` タブ②
-- アニメーション: `simulations/two-temp-plasma.html`（② 二温度状態 / ③ 熱平衡化）
+- シミュレーション: [▶ pb11-walls.html](https://goodrelax.github.io/pb11-fusion/simulations/pb11-walls.html) タブ②
+- アニメーション: [▶ two-temp-plasma.html](https://goodrelax.github.io/pb11-fusion/simulations/two-temp-plasma.html)（② 二温度状態 / ③ 熱平衡化）

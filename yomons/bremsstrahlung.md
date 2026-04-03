@@ -214,4 +214,4 @@ p-B11 のメリットは「中性子なし → 直接発電 → 高効率」。
 - [`electron-exhaust.md`](electron-exhaust.md) — 電子排出（補助的効果）
 - [`two-temp-plasma.md`](two-temp-plasma.md) — Ti/Te 分離の基礎
 - [`L1-physics.md`](L1-physics.md) — 物理層全体像
-- アニメーション: `simulations/bremsstrahlung.html`
+- アニメーション: [▶ bremsstrahlung.html](https://goodrelax.github.io/pb11-fusion/simulations/bremsstrahlung.html)

@@ -97,4 +97,4 @@ Te が上がりきる前に次サイクルへ
 - [`two-temp-plasma.md`](two-temp-plasma.md) — Ti/Te 分離の意味
 - [`larmor-radius.md`](larmor-radius.md) — 電子排除の可能性と限界
 - [`L1-physics.md`](L1-physics.md) — 制動放射問題の全体像
-- アニメーション: `simulations/fusion-timescales.html`
+- アニメーション: [▶ fusion-timescales.html](https://goodrelax.github.io/pb11-fusion/simulations/fusion-timescales.html)

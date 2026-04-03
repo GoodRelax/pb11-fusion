@@ -203,4 +203,4 @@ Z_eff² = 18.8 という制動放射ハンデは、この選択の代償。
 - [`ti-te-escape.md`](ti-te-escape.md) — 制動放射の抜け道（p-B11 専用の議論）
 - [`maxwell-distribution.md`](maxwell-distribution.md) — 非マクスウェル分布の定義
 - [`L1-physics.md`](L1-physics.md) — 物理層全体像
-- アニメーション: `simulations/fuel-comparison.html`
+- アニメーション: [▶ fuel-comparison.html](https://goodrelax.github.io/pb11-fusion/simulations/fuel-comparison.html)

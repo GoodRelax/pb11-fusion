@@ -320,4 +320,4 @@ Phase 2c でもう一度圧縮が必要な設計では矛盾が生じる。
 - [`ti-te-escape.md`](ti-te-escape.md) — 抜け道①②の詳細
 - [`fusion-timescales.md`](fusion-timescales.md) — ns スケールの時間設計
 - [`L1-physics.md`](L1-physics.md) — 制動放射問題の全体像
-- アニメーション: `simulations/electron-exhaust.html`
+- アニメーション: [▶ electron-exhaust.html](https://goodrelax.github.io/pb11-fusion/simulations/electron-exhaust.html)

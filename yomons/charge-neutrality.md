@@ -213,4 +213,4 @@ $$
 - [`larmor-radius.md`](larmor-radius.md) — 電子とイオンの運動の違い
 - [`ti-te-escape.md`](ti-te-escape.md) — 制動放射の抜け道
 - [`L1-physics.md`](L1-physics.md) — 物理層全体像
-- アニメーション: `simulations/charge-neutrality.html`
+- アニメーション: [▶ charge-neutrality.html](https://goodrelax.github.io/pb11-fusion/simulations/charge-neutrality.html)

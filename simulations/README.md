@@ -2,56 +2,46 @@
 
 ブラウザで HTML ファイルを直接開くだけで動きます。依存ライブラリなし。
 
+**GitHub Pages →** https://goodrelax.github.io/pb11-fusion/simulations/
+
 ## ファイル一覧
 
-### `zpinch/zpinch.html` — Zピンチ
+### 基礎アニメーション
 
-Zピンチの基本原理アニメーション。
+| ファイル | 内容 | 開く |
+|---------|------|------|
+| [`zpinch.html`](https://goodrelax.github.io/pb11-fusion/simulations/zpinch.html) | Zピンチの電流・磁場・圧縮 | [▶](https://goodrelax.github.io/pb11-fusion/simulations/zpinch.html) |
+| [`frc.html`](https://goodrelax.github.io/pb11-fusion/simulations/frc.html) | FRC（磁場反転配位） | [▶](https://goodrelax.github.io/pb11-fusion/simulations/frc.html) |
+| [`fusion-compare.html`](https://goodrelax.github.io/pb11-fusion/simulations/fusion-compare.html) | D-T vs p-B11 反応比較 | [▶](https://goodrelax.github.io/pb11-fusion/simulations/fusion-compare.html) |
 
-- 電流（Z方向）→ 磁場（θ方向）→ プラズマ圧縮（ローレンツ力）の連鎖
-- 圧縮フェーズでの温度・密度上昇を可視化
-- HUDで電流値・温度・ピンチ率をリアルタイム表示
+### p-B11 の障壁と4サイクル
 
----
+| ファイル | 内容 | 開く |
+|---------|------|------|
+| [`pb11-walls.html`](https://goodrelax.github.io/pb11-fusion/simulations/pb11-walls.html) | 3つの物理的障壁（クーロン・制動放射・トレードオフ） | [▶](https://goodrelax.github.io/pb11-fusion/simulations/pb11-walls.html) |
+| [`fusion-engine.html`](https://goodrelax.github.io/pb11-fusion/simulations/fusion-engine.html) | 4サイクル核融合エンジン（メイン） | [▶](https://goodrelax.github.io/pb11-fusion/simulations/fusion-engine.html) |
 
-### `frc/frc.html` — FRC（磁場反転配位）
+### Ti/Te 分離と制動放射問題
 
-Field-Reversed Configuration のアニメーション。
+| ファイル | 内容 | 開く |
+|---------|------|------|
+| [`two-temp-plasma.html`](https://goodrelax.github.io/pb11-fusion/simulations/two-temp-plasma.html) | 二温度プラズマ（Ti/Te 分離） | [▶](https://goodrelax.github.io/pb11-fusion/simulations/two-temp-plasma.html) |
+| [`larmor-radius.html`](https://goodrelax.github.io/pb11-fusion/simulations/larmor-radius.html) | ラーモア半径と電子排除 | [▶](https://goodrelax.github.io/pb11-fusion/simulations/larmor-radius.html) |
+| [`fusion-timescales.html`](https://goodrelax.github.io/pb11-fusion/simulations/fusion-timescales.html) | 距離・時間スケール | [▶](https://goodrelax.github.io/pb11-fusion/simulations/fusion-timescales.html) |
+| [`ti-te-escape.html`](https://goodrelax.github.io/pb11-fusion/simulations/ti-te-escape.html) | Ti/Te 分離の抜け道 | [▶](https://goodrelax.github.io/pb11-fusion/simulations/ti-te-escape.html) |
+| [`bremsstrahlung.html`](https://goodrelax.github.io/pb11-fusion/simulations/bremsstrahlung.html) | 制動放射（なぜ回収できないか） | [▶](https://goodrelax.github.io/pb11-fusion/simulations/bremsstrahlung.html) |
 
-- 外部磁場（→）と内部磁場（←）の反転構造
-- ラグビーボール型の分離面（separatrix）
-- 内部閉磁力線とプラズマ粒子の軌道
-- β振動（呼吸モード）
+### 圧縮トポロジーと電子排出
 
----
+| ファイル | 内容 | 開く |
+|---------|------|------|
+| [`compression-topology.html`](https://goodrelax.github.io/pb11-fusion/simulations/compression-topology.html) | 体→点への4つの圧縮ルート | [▶](https://goodrelax.github.io/pb11-fusion/simulations/compression-topology.html) |
+| [`electron-exhaust.html`](https://goodrelax.github.io/pb11-fusion/simulations/electron-exhaust.html) | 電子排出メカニズム | [▶](https://goodrelax.github.io/pb11-fusion/simulations/electron-exhaust.html) |
 
-### `fusion-compare/fusion-compare.html` — D-T vs p-¹¹B 反応比較
+### 基礎概念
 
-2つの核融合反応の違いを並べて可視化。
-
-- **左（D-T）**: 中性子が高速で飛び出し炉壁に衝突→放射化
-- **右（p-B11）**: α粒子3つが飛散→中性子なし→直接発電可能
-- 下部に比較表（廃棄物・燃料・難易度）
-
----
-
-### `pb11-walls/pb11-walls.html` — p-B11 の3つの障壁
-
-タブ切り替えで3種類の物理的障壁を可視化。
-
-- **① クーロン障壁**: ポテンシャルエネルギー曲線とD-T/p-B11の比較
-- **② 制動放射損失**: プラズマ内電子のX線放射とエネルギー収支バー
-- **③ トレードオフの罠**: 温度・密度・閉じ込めの相互干渉
-
----
-
-### `fusion-engine/fusion-engine.html` — 4サイクル核融合エンジン（メイン）
-
-このプロジェクトのコアコンセプトのフル可視化。
-
-- Phase 01 吸気: 電子ビームによるイオン集束
-- Phase 02 圧縮: Zピンチ爆縮
-- Phase 03 燃焼: p-¹¹B 核融合バースト
-- Phase 04 排気: α粒子回収・直接発電・リセット
-- サイクル数・NET エネルギー累積のリアルタイム表示
-- 速度調整ボタン付き（◀◀ 遅 / ▶ 標準 / ▶▶ 速）
+| ファイル | 内容 | 開く |
+|---------|------|------|
+| [`maxwell-distribution.html`](https://goodrelax.github.io/pb11-fusion/simulations/maxwell-distribution.html) | マクスウェル vs 非マクスウェル分布 | [▶](https://goodrelax.github.io/pb11-fusion/simulations/maxwell-distribution.html) |
+| [`charge-neutrality.html`](https://goodrelax.github.io/pb11-fusion/simulations/charge-neutrality.html) | プラズマの電荷中性 | [▶](https://goodrelax.github.io/pb11-fusion/simulations/charge-neutrality.html) |
+| [`fuel-comparison.html`](https://goodrelax.github.io/pb11-fusion/simulations/fuel-comparison.html) | 核融合燃料の比較（なぜ p-B11 か） | [▶](https://goodrelax.github.io/pb11-fusion/simulations/fuel-comparison.html) |
