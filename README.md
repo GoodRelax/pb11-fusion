@@ -90,6 +90,7 @@ pb11-fusion/
 | 距離・時間スケ��ル | [📄 md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/fusion-timescales.md) | [▶ html](https://goodrelax.github.io/pb11-fusion/simulations/fusion-timescales.html) |
 | ビーム-ターゲット核融合 | [📄 md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/beam-target.md) | [▶ html](https://goodrelax.github.io/pb11-fusion/simulations/beam-target.html) |
 | 電子問題（なぜ電子が邪魔か・7つの対策） | [📄 md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/electron-problem.md) | [▶ html](https://goodrelax.github.io/pb11-fusion/simulations/electron-problem.html) |
+| P_ie問題とαチャネリング（真のボトルネック） | [📄 md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/pie-alpha-channeling.md) | [▶ html](https://goodrelax.github.io/pb11-fusion/simulations/pie-alpha-channeling.html) |
 
 **4サイクル方式の分析:**
 
