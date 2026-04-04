@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MagLIF — 磁化ライナー慣性核融合</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a1a; color: #e0e0e0; font-family: 'Segoe UI', 'Hiragino Sans', sans-serif; }
+h1 { text-align: center; padding: 14px; font-size: 1.3em; color: #88ccff; }
+.subtitle { text-align: center; color: #888; font-size: 0.8em; margin-bottom: 8px; }
+.container { max-width: 860px; margin: 0 auto; padding: 0 12px; }
+.panel {
+  background: #111128; border: 1px solid #333; border-radius: 10px;
+  padding: 10px; margin-bottom: 10px;
+}
+.panel-title { font-size: 0.85em; font-weight: bold; margin-bottom: 6px; color: #88ccff; }
+.panel canvas { width: 100%; display: block; border-radius: 6px; }
+.controls {
+  text-align: center; padding: 8px;
+  display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;
+}
+.controls button {
+  background: #1a1a3a; color: #88ccff; border: 1px solid #444;
+  padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 0.78em;
+}
+.controls button:hover { background: #2a2a5a; }
+.controls button.on { border-color: #ffaa00; color: #ffaa00; }
+.legend {
+  display: flex; justify-content: center; gap: 14px; padding: 5px; font-size: 0.7em; color: #aaa; flex-wrap: wrap;
+}
+.legend-item { display: flex; align-items: center; gap: 4px; }
+.legend-dot { width: 9px; height: 9px; border-radius: 50%; }
+.info-box {
+  background: #111128; border: 1px solid #333; border-radius: 8px;
+  padding: 10px; font-size: 0.75em; line-height: 1.6; margin-top: 8px;
+}
+.info-box .label { color: #ffaa00; font-weight: bold; }
+.meter-row { display: flex; gap: 10px; margin-bottom: 8px; }
+.meter {
+  flex: 1; background: #111128; border: 1px solid #333; border-radius: 6px; padding: 6px 10px;
+  font-size: 0.72em;
+}
+.meter-label { color: #888; margin-bottom: 2px; }
+.meter-bar-bg { background: #1a1a2a; height: 10px; border-radius: 4px; overflow: hidden; }
+.meter-bar { height: 100%; border-radius: 4px; transition: width 0.3s; }
+.meter-val { text-align: right; font-size: 0.85em; margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<h1>MagLIF — 磁化ライナー慣性核融合</h1>
+<div class="subtitle">Sandia Z-machine — 軸方向磁場 + レーザー予熱 + Zピンチ圧縮（体→線→点）</div>
+
+<div class="container">
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#888"></div> Beライナー（金属）</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#44ff88"></div> 軸方向磁場</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ffcc44"></div> レーザービーム</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ff6644"></div> D-T 燃料（イオン）</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#4488ff"></div> 電流フロー</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ffaa44"></div> α粒子</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#aaa"></div> 中性子</div>
+</div>
+
+<div class="controls">
+  <button onclick="setPhase('prep')" class="on" id="btnPrep">① 3要素の準備</button>
+  <button onclick="setPhase('compress')" id="btnCompress">② Zピンチ圧縮</button>
+  <button onclick="setPhase('burn')" id="btnBurn">③ 核融合燃焼</button>
+  <button onclick="setPhase('compare')" id="btnCompare">④ vs 4サイクル</button>
+  <button onclick="togglePause()" id="btnPause">一時停止</button>
+</div>
+
+<div class="panel">
+  <div class="panel-title" id="mainTitle">① 3要素の準備: 磁場 + レーザー予熱 + ライナー</div>
+  <canvas id="canvasMain" style="height:400px"></canvas>
+</div>
+
+<div class="meter-row">
+  <div class="meter">
+    <div class="meter-label">電流 (MA)</div>
+    <div class="meter-bar-bg"><div class="meter-bar" id="meterCurrent" style="width:0%;background:#4488ff"></div></div>
+    <div class="meter-val" id="valCurrent" style="color:#4488ff">0 MA</div>
+  </div>
+  <div class="meter">
+    <div class="meter-label">イオン温度 Ti</div>
+    <div class="meter-bar-bg"><div class="meter-bar" id="meterTi" style="width:2%;background:#ff6644"></div></div>
+    <div class="meter-val" id="valTi" style="color:#ff6644">0.01 keV</div>
+  </div>
+  <div class="meter">
+    <div class="meter-label">密度 (g/cm³)</div>
+    <div class="meter-bar-bg"><div class="meter-bar" id="meterDensity" style="width:1%;background:#44ff88"></div></div>
+    <div class="meter-val" id="valDensity" style="color:#44ff88">0.001</div>
+  </div>
+</div>
+
+<div class="info-box" id="infoBox">
+  <span class="label">① 3要素の準備:</span> MagLIF は 3 つの要素を組み合わせる。(1) 軸方向磁場（緑の線）で α 粒子を閉じ込め、(2) レーザー（黄色）で燃料を数百 eV に予熱し、(3) Be ライナー（灰色の円筒）を Z ピンチ電流で圧縮する。予熱により必要な圧縮比が ~10 に抑えられる（ICF の ~30-40 と比較）。
+</div>
+
+</div>
+
+<script>
+const canvas = document.getElementById('canvasMain');
+const ctx = canvas.getContext('2d');
+let W, H;
+function resize() { W = canvas.offsetWidth * 2; H = 800; canvas.width = W; canvas.height = H; }
+resize();
+window.addEventListener('resize', resize);
+
+let phase = 'prep';
+let paused = false;
+let time = 0;
+
+// Physical values
+let current = 0; // MA
+let ti = 0.01;   // keV
+let density = 0.001; // g/cm3
+let linerRadius = 1.0; // normalized (1.0 = initial)
+let linerRadiusTarget = 1.0;
+
+// Particles
+const fuelIons = [];
+const neutrons = [];
+const alphas = [];
+const laserParticles = [];
+
+for (let i = 0; i < 40; i++) {
+  const angle = Math.random() * Math.PI * 2;
+  const r = Math.random() * 0.6;
+  fuelIons.push({
+    x: Math.cos(angle) * r,
+    y: (Math.random() - 0.5) * 1.4,
+    vx: (Math.random() - 0.5) * 0.003,
+    vy: (Math.random() - 0.5) * 0.003,
+    hot: false
+  });
+}
+
+const infos = {
+  prep: '<span class="label">① 3要素の準備:</span> MagLIF は 3 つの要素を組み合わせる。(1) 軸方向磁場（緑の線）で α 粒子を閉じ込め、(2) レーザー（黄色）で燃料を数百 eV に予熱し、(3) Be ライナー（灰色の円筒）を Z ピンチ電流で圧縮する。予熱により必要な圧縮比が ~10 に抑えられる（ICF の ~30-40 と比較）。',
+  compress: '<span class="label">② Zピンチ圧縮:</span> Z-machine が 26 MA の電流パルスをライナーに流す。J × B 力（ローレンツ力）がライナーを内向きに圧縮（~70 km/s）。体積 → 線状 → 点へと燃料が圧縮される。軸方向磁場は磁束保存により 10³〜10⁴ T に増幅。圧縮比は ~10 で ICF より格段に小さい。',
+  burn: '<span class="label">③ 核融合燃焼:</span> 圧縮された D-T 燃料が ~3 keV 以上に到達し、熱核融合反応が起こる。中性子（灰色）は磁場を無視して飛び出すが、α 粒子（橙色）は増幅された磁場に閉じ込められ、燃料を追加加熱する（自己加熱）。2014年に熱核中性子が確認された。',
+  compare: '<span class="label">④ MagLIF vs 4サイクル:</span> 左: MagLIF（D-T、レーザー予熱）。右: 4サイクル案（p-B11、電子ビーム予熱 + 電子排出）。圧縮トポロジー（C ルート: 体→線→点）と Z ピンチ駆動は同じ。決定的な違いは燃料。D-T では Z_eff=1 で制動放射が軽いが、p-B11 では Z_eff²=25 倍の制動放射が発生するため、電子ビーム前段フォーカシングが必要になる。'
+};
+
+function setPhase(p) {
+  phase = p;
+  ['btnPrep','btnCompress','btnBurn','btnCompare'].forEach(id => document.getElementById(id).classList.remove('on'));
+  const map = { prep: 'btnPrep', compress: 'btnCompress', burn: 'btnBurn', compare: 'btnCompare' };
+  document.getElementById(map[p]).classList.add('on');
+  document.getElementById('infoBox').innerHTML = infos[p];
+  const titles = {
+    prep: '① 3要素の準備: 磁場 + レーザー予熱 + ライナー',
+    compress: '② Zピンチ圧縮: 26 MA → J×B 内爆（体→線→点）',
+    burn: '③ 核融合燃焼: D-T → n + α（2014年 熱核中性子確認）',
+    compare: '④ MagLIF（D-T）vs 4サイクル案（p-B11）'
+  };
+  document.getElementById('mainTitle').textContent = titles[p];
+
+  if (p === 'prep') { current = 0; ti = 0.01; density = 0.001; linerRadius = 1.0; linerRadiusTarget = 1.0; neutrons.length = 0; alphas.length = 0; }
+  if (p === 'compress') { linerRadiusTarget = 0.15; neutrons.length = 0; alphas.length = 0; }
+  if (p === 'burn') { linerRadiusTarget = 0.12; }
+}
+
+function togglePause() {
+  paused = !paused;
+  const b = document.getElementById('btnPause');
+  b.textContent = paused ? '再生' : '一時停止';
+  b.classList.toggle('on', paused);
+}
+
+function updatePhysics() {
+  // Liner radius interpolation
+  linerRadius += (linerRadiusTarget - linerRadius) * 0.02;
+
+  if (phase === 'prep') {
+    current = 0;
+    ti = Math.min(0.3, ti + (0.3 - ti) * 0.005);
+    density = 0.001;
+    // Laser particles
+    if (Math.random() < 0.12) {
+      laserParticles.push({
+        x: 0, y: -1.2,
+        vx: (Math.random() - 0.5) * 0.002,
+        vy: 0.025,
+        life: 1
+      });
+    }
+  } else if (phase === 'compress') {
+    current = Math.min(26, current + (26 - current) * 0.01);
+    ti = Math.min(3, ti + (3 - ti) * 0.003);
+    density = Math.min(0.2, density + (0.2 - density) * 0.005);
+    laserParticles.length = 0;
+  } else if (phase === 'burn') {
+    current = Math.max(5, current + (5 - current) * 0.02);
+    ti = Math.min(4, ti + (4 - ti) * 0.005);
+    density = Math.min(0.3, density + (0.3 - density) * 0.003);
+    // Spawn neutrons and alphas
+    if (Math.random() < 0.04) {
+      const angle = Math.random() * Math.PI * 2;
+      neutrons.push({
+        x: (Math.random() - 0.5) * linerRadius * 0.5,
+        y: (Math.random() - 0.5) * 0.5,
+        vx: Math.cos(angle) * 0.02,
+        vy: Math.sin(angle) * 0.02,
+        life: 1
+      });
+    }
+    if (Math.random() < 0.03) {
+      const angle = Math.random() * Math.PI * 2;
+      alphas.push({
+        x: (Math.random() - 0.5) * linerRadius * 0.3,
+        y: (Math.random() - 0.5) * 0.3,
+        vx: Math.cos(angle) * 0.008,
+        vy: Math.sin(angle) * 0.008,
+        life: 1,
+        angle: angle
+      });
+    }
+  }
+
+  // Update fuel ions
+  const confine = linerRadius * 0.9;
+  fuelIons.forEach(p => {
+    const speed = 1 + ti * 0.3;
+    p.vx += (Math.random() - 0.5) * 0.001 * speed;
+    p.vy += (Math.random() - 0.5) * 0.001 * speed;
+    const r = Math.sqrt(p.x * p.x);
+    if (r > confine) {
+      p.vx -= p.x * 0.01;
+    }
+    if (Math.abs(p.y) > 0.8) {
+      p.vy -= p.y * 0.005;
+    }
+    p.vx *= 0.96;
+    p.vy *= 0.96;
+    p.x += p.vx;
+    p.y += p.vy;
+    p.hot = ti > 1;
+  });
+
+  // Update laser particles
+  for (let i = laserParticles.length - 1; i >= 0; i--) {
+    const p = laserParticles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life -= 0.012;
+    if (p.life <= 0 || p.y > 0.8) laserParticles.splice(i, 1);
+  }
+
+  // Update neutrons (fly out freely)
+  for (let i = neutrons.length - 1; i >= 0; i--) {
+    const p = neutrons[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life -= 0.008;
+    if (p.life <= 0) neutrons.splice(i, 1);
+  }
+
+  // Update alphas (confined by magnetic field - spiral)
+  for (let i = alphas.length - 1; i >= 0; i--) {
+    const p = alphas[i];
+    p.angle += 0.15;
+    const spiralR = 0.03 + (1 - p.life) * 0.06;
+    p.x += Math.cos(p.angle) * 0.003;
+    p.y += Math.sin(p.angle) * 0.003;
+    // Confine within liner
+    const r = Math.sqrt(p.x * p.x);
+    if (r > linerRadius * 0.8) {
+      p.x *= 0.95;
+      p.vx *= -0.5;
+    }
+    if (Math.abs(p.y) > 0.7) {
+      p.y *= 0.95;
+    }
+    p.life -= 0.005;
+    if (p.life <= 0) alphas.splice(i, 1);
+  }
+}
+
+function drawLiner(cx, cy, rw, rh) {
+  // Metal liner (gray cylinder)
+  const lr = linerRadius;
+  const lw = rw * lr;
+  const lh = rh * 1.4;
+  const wallThick = Math.max(4, 12 * lr);
+
+  // Outer wall
+  ctx.strokeStyle = `rgba(180,180,190,${0.6 + 0.2 * Math.sin(time * 2)})`;
+  ctx.lineWidth = wallThick;
+  ctx.beginPath();
+  ctx.rect(cx - lw, cy - lh, lw * 2, lh * 2);
+  ctx.stroke();
+
+  // Fill inside (darker)
+  ctx.fillStyle = 'rgba(15,15,30,0.8)';
+  ctx.fillRect(cx - lw + wallThick/2, cy - lh + wallThick/2, lw * 2 - wallThick, lh * 2 - wallThick);
+
+  // Liner label
+  ctx.font = '11px sans-serif';
+  ctx.fillStyle = 'rgba(180,180,190,0.5)';
+  ctx.textAlign = 'center';
+  ctx.fillText('Be ライナー', cx, cy - lh - 12);
+
+  return { lw, lh, wallThick };
+}
+
+function drawAxialBField(cx, cy, rw, rh) {
+  // Green vertical lines inside liner
+  const lr = linerRadius;
+  const lw = rw * lr * 0.8;
+  const lh = rh * 1.3;
+  const numLines = Math.max(3, Math.floor(7 * lr));
+
+  ctx.strokeStyle = `rgba(68,255,136,${0.25 + 0.1 * Math.sin(time * 1.5)})`;
+  ctx.lineWidth = 1.5;
+
+  for (let i = 0; i < numLines; i++) {
+    const xOff = (i / (numLines - 1) - 0.5) * lw * 2;
+    ctx.beginPath();
+    ctx.moveTo(cx + xOff, cy - lh);
+    ctx.lineTo(cx + xOff, cy + lh);
+    ctx.stroke();
+
+    // Upward arrows
+    ctx.beginPath();
+    ctx.moveTo(cx + xOff, cy - lh * 0.3);
+    ctx.lineTo(cx + xOff - 4, cy - lh * 0.3 + 6);
+    ctx.moveTo(cx + xOff, cy - lh * 0.3);
+    ctx.lineTo(cx + xOff + 4, cy - lh * 0.3 + 6);
+    ctx.stroke();
+  }
+
+  // Label
+  ctx.font = '11px sans-serif';
+  ctx.fillStyle = '#44ff88';
+  ctx.textAlign = 'left';
+  const fieldStrength = phase === 'prep' ? '~10 T' : (phase === 'compress' || phase === 'burn') ? '~10⁴ T' : '';
+  ctx.fillText('B 軸方向磁場 ' + fieldStrength, cx + rw * lr + 20, cy - rh * 0.5);
+}
+
+function drawCurrentFlow(cx, cy, rw, rh) {
+  if (phase !== 'compress' && phase !== 'burn') return;
+  const lr = linerRadius;
+  const lw = rw * lr;
+  const lh = rh * 1.4;
+  const alpha = Math.min(0.8, current / 26);
+
+  // Current arrows around the liner (circular)
+  ctx.strokeStyle = `rgba(68,136,255,${alpha})`;
+  ctx.lineWidth = 2;
+
+  const positions = [-0.6, -0.2, 0.2, 0.6];
+  positions.forEach(frac => {
+    const y = cy + frac * lh;
+    // Right side arrows (current coming toward viewer on right)
+    const arrowX = cx + lw + 15;
+    ctx.beginPath();
+    ctx.arc(arrowX, y, 6, 0, Math.PI * 2);
+    ctx.stroke();
+    // Dot in center (current toward viewer)
+    ctx.fillStyle = `rgba(68,136,255,${alpha})`;
+    ctx.beginPath();
+    ctx.arc(arrowX, y, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Left side (current going away from viewer)
+    const arrowXL = cx - lw - 15;
+    ctx.beginPath();
+    ctx.arc(arrowXL, y, 6, 0, Math.PI * 2);
+    ctx.stroke();
+    // X in center (current away from viewer)
+    ctx.beginPath();
+    ctx.moveTo(arrowXL - 3, y - 3);
+    ctx.lineTo(arrowXL + 3, y + 3);
+    ctx.moveTo(arrowXL + 3, y - 3);
+    ctx.lineTo(arrowXL - 3, y + 3);
+    ctx.stroke();
+  });
+
+  // J x B arrows pointing inward
+  ctx.strokeStyle = `rgba(255,100,100,${alpha * 0.6})`;
+  ctx.lineWidth = 2;
+  const arrowPositions = [-0.4, 0, 0.4];
+  arrowPositions.forEach(frac => {
+    const y = cy + frac * lh;
+    // Right inward arrow
+    ctx.beginPath();
+    ctx.moveTo(cx + lw + 30, y);
+    ctx.lineTo(cx + lw + 8, y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + lw + 8, y);
+    ctx.lineTo(cx + lw + 14, y - 3);
+    ctx.moveTo(cx + lw + 8, y);
+    ctx.lineTo(cx + lw + 14, y + 3);
+    ctx.stroke();
+
+    // Left inward arrow
+    ctx.beginPath();
+    ctx.moveTo(cx - lw - 30, y);
+    ctx.lineTo(cx - lw - 8, y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - lw - 8, y);
+    ctx.lineTo(cx - lw - 14, y - 3);
+    ctx.moveTo(cx - lw - 8, y);
+    ctx.lineTo(cx - lw - 14, y + 3);
+    ctx.stroke();
+  });
+
+  // Labels
+  ctx.font = '11px sans-serif';
+  ctx.fillStyle = '#4488ff';
+  ctx.textAlign = 'right';
+  ctx.fillText(current.toFixed(0) + ' MA', cx - lw - 35, cy - lh - 5);
+  ctx.fillStyle = 'rgba(255,100,100,0.7)';
+  ctx.textAlign = 'left';
+  ctx.fillText('J×B →', cx + lw + 35, cy);
+}
+
+function drawLaser(cx, cy, rh) {
+  if (phase !== 'prep') return;
+  const lh = rh * 1.4;
+  const alpha = 0.5 + 0.3 * Math.sin(time * 4);
+
+  // Laser beam from top
+  const grad = ctx.createLinearGradient(cx, cy - lh - 80, cx, cy);
+  grad.addColorStop(0, `rgba(255,204,68,${alpha})`);
+  grad.addColorStop(0.5, `rgba(255,220,100,${alpha * 0.8})`);
+  grad.addColorStop(1, `rgba(255,180,50,${alpha * 0.3})`);
+
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(cx - 25, cy - lh - 80);
+  ctx.lineTo(cx + 25, cy - lh - 80);
+  ctx.lineTo(cx + 8, cy - lh * 0.3);
+  ctx.lineTo(cx - 8, cy - lh * 0.3);
+  ctx.closePath();
+  ctx.fill();
+
+  // Label
+  ctx.font = 'bold 12px sans-serif';
+  ctx.fillStyle = '#ffcc44';
+  ctx.textAlign = 'center';
+  ctx.fillText('Z-Beamlet レーザー (~2 kJ)', cx, cy - lh - 88);
+  ctx.font = '11px sans-serif';
+  ctx.fillText('↓ 予熱', cx, cy - lh - 68);
+}
+
+function drawFuelIons(cx, cy, rw, rh) {
+  const lr = linerRadius;
+  fuelIons.forEach(p => {
+    const px = cx + p.x * rw;
+    const py = cy + p.y * rh;
+    const r = p.hot ? 4.5 : 3;
+    ctx.beginPath();
+    ctx.arc(px, py, r, 0, Math.PI * 2);
+    if (p.hot) {
+      ctx.fillStyle = 'rgba(255,100,68,0.85)';
+    } else {
+      ctx.fillStyle = 'rgba(255,120,80,0.5)';
+    }
+    ctx.fill();
+  });
+}
+
+function drawLaserParticles(cx, cy, rw, rh) {
+  laserParticles.forEach(p => {
+    const px = cx + p.x * rw;
+    const py = cy + p.y * rh;
+    ctx.fillStyle = `rgba(255,220,100,${p.life})`;
+    ctx.fillRect(px - 2, py - 2, 4, 4);
+  });
+}
+
+function drawNeutrons(cx, cy, rw, rh) {
+  neutrons.forEach(p => {
+    const px = cx + p.x * rw * 5;
+    const py = cy + p.y * rh * 2;
+    ctx.beginPath();
+    ctx.arc(px, py, 3, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(200,200,200,${p.life})`;
+    ctx.fill();
+    // Trail
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(px - p.vx * rw * 80, py - p.vy * rh * 30);
+    ctx.strokeStyle = `rgba(200,200,200,${p.life * 0.3})`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
+}
+
+function drawAlphas(cx, cy, rw, rh) {
+  alphas.forEach(p => {
+    const px = cx + p.x * rw * 2;
+    const py = cy + p.y * rh;
+    ctx.beginPath();
+    ctx.arc(px, py, 4, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,170,68,${p.life})`;
+    ctx.fill();
+    // Spiral trail
+    ctx.beginPath();
+    for (let j = 0; j < 6; j++) {
+      const a = p.angle - j * 0.3;
+      const tr = 3 + j * 1.5;
+      const tx = px + Math.cos(a) * tr;
+      const ty = py + Math.sin(a) * tr;
+      j === 0 ? ctx.moveTo(tx, ty) : ctx.lineTo(tx, ty);
+    }
+    ctx.strokeStyle = `rgba(255,170,68,${p.life * 0.4})`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
+}
+
+function drawCompareMode() {
+  ctx.strokeStyle = '#333';
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(W / 2, 0);
+  ctx.lineTo(W / 2, H);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  const lx = W / 4, rx = W * 3 / 4;
+
+  // Titles
+  ctx.font = 'bold 16px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#88ccff';
+  ctx.fillText('MagLIF（D-T）', lx, 30);
+  ctx.fillText('4サイクル案（p-B11）', rx, 30);
+
+  // Draw mini liner on each side
+  const miniRW = 50, miniRH = 80;
+  const mcy = H * 0.38;
+
+  // Left: MagLIF
+  // Liner
+  ctx.strokeStyle = 'rgba(180,180,190,0.5)';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(lx - miniRW, mcy - miniRH, miniRW * 2, miniRH * 2);
+  // B field
+  ctx.strokeStyle = 'rgba(68,255,136,0.3)';
+  ctx.lineWidth = 1;
+  for (let i = -1; i <= 1; i++) {
+    ctx.beginPath();
+    ctx.moveTo(lx + i * 25, mcy - miniRH + 5);
+    ctx.lineTo(lx + i * 25, mcy + miniRH - 5);
+    ctx.stroke();
+  }
+  // Laser
+  ctx.fillStyle = 'rgba(255,204,68,0.4)';
+  ctx.beginPath();
+  ctx.moveTo(lx - 15, mcy - miniRH - 40);
+  ctx.lineTo(lx + 15, mcy - miniRH - 40);
+  ctx.lineTo(lx + 5, mcy - miniRH + 10);
+  ctx.lineTo(lx - 5, mcy - miniRH + 10);
+  ctx.closePath();
+  ctx.fill();
+  // Fuel dots
+  for (let i = 0; i < 8; i++) {
+    ctx.beginPath();
+    ctx.arc(lx + (Math.random() - 0.5) * miniRW, mcy + (Math.random() - 0.5) * miniRH, 3, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,100,68,0.6)';
+    ctx.fill();
+  }
+
+  // Right: 4-cycle
+  ctx.strokeStyle = 'rgba(180,180,190,0.5)';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(rx - miniRW, mcy - miniRH, miniRW * 2, miniRH * 2);
+  // B field
+  ctx.strokeStyle = 'rgba(68,255,136,0.3)';
+  ctx.lineWidth = 1;
+  for (let i = -1; i <= 1; i++) {
+    ctx.beginPath();
+    ctx.moveTo(rx + i * 25, mcy - miniRH + 5);
+    ctx.lineTo(rx + i * 25, mcy + miniRH - 5);
+    ctx.stroke();
+  }
+  // Electron beam (instead of laser)
+  ctx.fillStyle = 'rgba(100,150,255,0.4)';
+  ctx.beginPath();
+  ctx.moveTo(rx - 15, mcy - miniRH - 40);
+  ctx.lineTo(rx + 15, mcy - miniRH - 40);
+  ctx.lineTo(rx + 5, mcy - miniRH + 10);
+  ctx.lineTo(rx - 5, mcy - miniRH + 10);
+  ctx.closePath();
+  ctx.fill();
+  // Fuel dots (p-B11 colors)
+  for (let i = 0; i < 8; i++) {
+    ctx.beginPath();
+    ctx.arc(rx + (Math.random() - 0.5) * miniRW, mcy + (Math.random() - 0.5) * miniRH, 3, 0, Math.PI * 2);
+    ctx.fillStyle = i % 3 === 0 ? 'rgba(100,200,255,0.6)' : 'rgba(255,100,68,0.6)';
+    ctx.fill();
+  }
+
+  // Comparison text
+  ctx.font = '12px sans-serif';
+  ctx.textAlign = 'center';
+  const y0 = H * 0.6;
+  const lineH = 22;
+
+  // Similarities (green)
+  ctx.fillStyle = '#44ff88';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillText('--- 共通点 ---', W / 2, y0);
+  ctx.font = '12px sans-serif';
+  ctx.fillText('圧縮トポロジー: C ルート（体→線→点）', W / 2, y0 + lineH);
+  ctx.fillText('ドライバー: Z ピンチ（MA 電流）', W / 2, y0 + lineH * 2);
+  ctx.fillText('軸方向磁場による閉じ込め補助', W / 2, y0 + lineH * 3);
+  ctx.fillText('パルス運転', W / 2, y0 + lineH * 4);
+
+  // Differences
+  ctx.fillStyle = '#ffaa00';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillText('--- 違い ---', W / 2, y0 + lineH * 5.5);
+  ctx.font = '12px sans-serif';
+
+  ctx.textAlign = 'center';
+  // Left column
+  ctx.fillStyle = '#88ccff';
+  ctx.fillText('D-T（Z_eff=1）', lx, y0 + lineH * 7);
+  ctx.fillText('レーザー予熱', lx, y0 + lineH * 8);
+  ctx.fillText('電子排出なし', lx, y0 + lineH * 9);
+  ctx.fillText('制動放射: 問題なし', lx, y0 + lineH * 10);
+  ctx.fillStyle = '#44ff88';
+  ctx.fillText('実験実証あり（2014）', lx, y0 + lineH * 11);
+
+  // Right column
+  ctx.fillStyle = '#ffaa00';
+  ctx.fillText('p-B11（Z_eff²=25）', rx, y0 + lineH * 7);
+  ctx.fillText('電子ビーム予熱', rx, y0 + lineH * 8);
+  ctx.fillText('電子排出あり', rx, y0 + lineH * 9);
+  ctx.fillText('制動放射: 最大の課題', rx, y0 + lineH * 10);
+  ctx.fillStyle = '#ff6644';
+  ctx.fillText('思考実験のみ', rx, y0 + lineH * 11);
+
+  // Bottom summary
+  ctx.font = '11px sans-serif';
+  ctx.fillStyle = '#888';
+  ctx.textAlign = 'center';
+  ctx.fillText('4サイクル案 ≈ MagLIF + 電子ビーム前段フォーカシング（制動放射対策）', W / 2, H - 25);
+
+  // Labels
+  ctx.font = '11px sans-serif';
+  ctx.fillStyle = '#ffcc44';
+  ctx.fillText('レーザー', lx, mcy - miniRH - 48);
+  ctx.fillStyle = '#6699ff';
+  ctx.fillText('電子ビーム', rx, mcy - miniRH - 48);
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#08081a';
+  ctx.fillRect(0, 0, W, H);
+
+  if (phase === 'compare') {
+    drawCompareMode();
+  } else {
+    const cx = W / 2, cy = H / 2;
+    const rw = W * 0.12, rh = H * 0.22;
+
+    // Draw components
+    drawAxialBField(cx, cy, rw, rh);
+    drawLiner(cx, cy, rw, rh);
+    drawLaser(cx, cy, rh);
+    drawCurrentFlow(cx, cy, rw, rh);
+    drawLaserParticles(cx, cy, rw, rh);
+    drawFuelIons(cx, cy, rw * linerRadius, rh);
+    drawNeutrons(cx, cy, rw, rh);
+    drawAlphas(cx, cy, rw, rh);
+
+    // Compression topology label
+    if (phase === 'compress') {
+      ctx.font = 'bold 13px sans-serif';
+      ctx.fillStyle = '#ffaa00';
+      ctx.textAlign = 'center';
+      const compressText = linerRadius > 0.5 ? '体 → ...' : linerRadius > 0.25 ? '体 → 線 → ...' : '体 → 線 → 点';
+      ctx.fillText('圧縮: ' + compressText, cx, H - 30);
+    }
+
+    if (phase === 'burn') {
+      // Glow effect at center
+      const glowR = 20 + 10 * Math.sin(time * 3);
+      const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowR * (rw * linerRadius / 50));
+      glow.addColorStop(0, 'rgba(255,200,100,0.3)');
+      glow.addColorStop(0.5, 'rgba(255,150,50,0.1)');
+      glow.addColorStop(1, 'rgba(255,100,50,0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.font = '11px sans-serif';
+      ctx.fillStyle = '#aaa';
+      ctx.textAlign = 'left';
+      ctx.fillText('n（中性子）→ 自由に脱出', cx + rw * 1.5, cy - 30);
+      ctx.fillStyle = '#ffaa44';
+      ctx.fillText('α（ヘリウム）→ 磁場で閉じ込め', cx + rw * 1.5, cy);
+    }
+
+    // Phase watermark
+    ctx.font = '11px sans-serif';
+    ctx.fillStyle = '#555';
+    ctx.textAlign = 'right';
+    ctx.fillText('Sandia Z-machine MagLIF', W - 15, H - 10);
+  }
+
+  // Update meters
+  document.getElementById('meterCurrent').style.width = (current / 30 * 100) + '%';
+  document.getElementById('valCurrent').textContent = current.toFixed(0) + ' MA';
+  document.getElementById('meterTi').style.width = (ti / 5 * 100) + '%';
+  document.getElementById('valTi').textContent = ti.toFixed(2) + ' keV';
+  document.getElementById('meterDensity').style.width = (density / 0.4 * 100) + '%';
+  document.getElementById('valDensity').textContent = density.toFixed(3);
+}
+
+function animate() {
+  if (!paused) {
+    time += 0.016;
+    updatePhysics();
+  }
+  draw();
+  requestAnimationFrame(animate);
+}
+
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
