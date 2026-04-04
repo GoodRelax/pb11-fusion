@@ -115,6 +115,7 @@ HTML ファイルをブラウザで開くだけで動く。依存ライブラリ
 | `fuel-comparison.html` | 核融合燃料の比較（なぜ p-B11 か） | [▶](https://goodrelax.github.io/pb11-fusion/simulations/fuel-comparison.html) |
 | `bremsstrahlung.html` | 制動放射（なぜ回収できないか） | [▶](https://goodrelax.github.io/pb11-fusion/simulations/bremsstrahlung.html) |
 | `fusion-projects.html` | 核融合プロジェクト比較（インタラクティブ表） | [▶](https://goodrelax.github.io/pb11-fusion/simulations/fusion-projects.html) |
+| `tae-technologies.html` | TAE Technologies（FRC + NBI 段階加熱） | [▶](https://goodrelax.github.io/pb11-fusion/simulations/tae-technologies.html) |
 
 ---
 
