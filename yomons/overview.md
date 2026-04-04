@@ -410,7 +410,8 @@ $$
 
 ①③の組み合わせでP_fus/P_brem自体は改善できるが、**②は計算で否定された**（τ_eq/τ_burn = 0.0038、密度非依存。詳細は [`pie-pulse-calculation.md`](pie-pulse-calculation.md)）。**P_ieの壁は①③では超えられない**。④（αチャネリング）が成立しない限り、通常の再循環パスでは大幅な赤字（P_ie補償に核融合出力の10〜20倍の外部加熱が必要）。αチャネリングがあっても限定的赤字（~1.05の不足）が残る（Opus Phase 2分析より）。
 
-> 詳細: [`bremsstrahlung.md`](bremsstrahlung.md) / [`ti-te-escape.md`](ti-te-escape.md) / [`maxwell-distribution.md`](maxwell-distribution.md) / [`electron-exhaust.md`](electron-exhaust.md) / [`two-temp-plasma.md`](two-temp-plasma.md) / [`fusion-timescales.md`](fusion-timescales.md) / [`larmor-radius.md`](larmor-radius.md) / [`compression-topology.md`](compression-topology.md) / [`electron-problem.md`](electron-problem.md)（電子問題の全体像・7つの対策・P_fusion/P_brem 他プロジェクト比較） / [`fusion-projects.md`](fusion-projects.md)（25方式比較）
+> 詳細: [`bremsstrahlung.md`](bremsstrahlung.md) / [`ti-te-escape.md`](ti-te-escape.md) / [`maxwell-distribution.md`](maxwell-distribution.md) / [`electron-exhaust.md`](electron-exhaust.md) / [`two-temp-plasma.md`](two-temp-plasma.md) / [`fusion-timescales.md`](fusion-timescales.md) / [`larmor-radius.md`](larmor-radius.md) / [`compression-topology.md`](compression-topology.md) / [`electron-problem.md`](electron-problem.md)（電子問題の全体像・7つの対策・**全経路の総括「p-B11の呪い」**） / [`fusion-projects.md`](fusion-projects.md)（25方式比較）
+> パルス計算: [`pie-pulse-calculation.md`](pie-pulse-calculation.md)（抜け道②の否定証明） / [`pie-alpha-channeling.md`](pie-alpha-channeling.md)（P_ie問題とαチャネリング）
 > Phase 2 深掘り分析: [`../fusion/p-b11-analysis.md`](https://github.com/GoodRelax/pb11-fusion/blob/main/fusion/p-b11-analysis.md)
 
 ---
