@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ビー���-ターゲット核融合</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a1a; color: #e0e0e0; font-family: 'Segoe UI', 'Hiragino Sans', sans-serif; padding-top: 28px; }
+nav.topnav { position:fixed;top:0;left:0;right:0;z-index:9999;background:#0a0a1a;border-bottom:1px solid #333;padding:4px 12px;font-size:0.75em; }
+nav.topnav a { color:#88ccff;text-decoration:none; }
+nav.topnav a:hover { text-decoration:underline; }
+nav.topnav .sep { color:#555;margin:0 8px; }
+nav.topnav .repo { color:#666; }
+h1 { text-align:center; padding:14px; font-size:1.3em; color:#88ccff; }
+.subtitle { text-align:center; color:#888; font-size:0.8em; margin-bottom:12px; }
+.container { max-width:900px; margin:0 auto; padding:0 12px; }
+canvas { display:block; margin:0 auto 12px; border:1px solid #333; border-radius:8px; background:#050510; }
+.controls { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-bottom:14px; }
+.controls button {
+  background:#1a1a3a; color:#88ccff; border:1px solid #444;
+  padding:6px 16px; border-radius:6px; cursor:pointer; font-size:0.82em;
+}
+.controls button:hover { background:#2a2a5a; }
+.controls button.active { border-color:#ffaa00; color:#ffaa00; background:#2a2a1a; }
+.stats {
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+  gap:8px; margin-bottom:14px;
+}
+.stat-box {
+  background:#111128; border:1px solid #333; border-radius:6px;
+  padding:10px; text-align:center;
+}
+.stat-box .label { color:#888; font-size:0.72em; margin-bottom:4px; }
+.stat-box .value { color:#ffcc44; font-size:1.3em; font-weight:bold; font-family:monospace; }
+.stat-box .unit { color:#888; font-size:0.7em; }
+.explanation {
+  background:#111128; border:1px solid #333; border-radius:8px;
+  padding:14px; margin-top:12px; font-size:0.82em; line-height:1.7;
+}
+.explanation h3 { color:#88ccff; margin-bottom:6px; font-size:0.95em; }
+.bar-wrap { margin:6px 0; }
+.bar-label { font-size:0.75em; color:#aaa; margin-bottom:2px; }
+.bar-bg { background:#1a1a3a; border-radius:4px; height:18px; position:relative; overflow:hidden; }
+.bar-fill { height:100%; border-radius:4px; transition:width 0.3s; }
+.bar-text { position:absolute; right:6px; top:1px; font-size:0.7em; color:#fff; font-family:monospace; }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+<a href="https://github.com/GoodRelax/pb11-fusion#コンテンツ一覧">📋 一覧に戻る</a>
+<span class="sep">|</span>
+<a href="https://github.com/GoodRelax/pb11-fusion" class="repo">pb11-fusion</a>
+</nav>
+
+<h1>ビーム-ターゲット核融合シミュレーション</h1>
+<div class="subtitle">固体ホウ素に陽子を撃ち込むとどうなるか</div>
+
+<div class="container">
+
+<canvas id="sim" width="860" height="380"></canvas>
+
+<div class="controls">
+  <button id="btnFire" onclick="fireProton()">陽子を発射</button>
+  <button id="btnAuto" onclick="toggleAuto()">連続��射</button>
+  <button onclick="resetStats()">リセット</button>
+  <span style="color:#666;padding:6px;font-size:0.75em;">エネルギー:</span>
+  <button class="active" onclick="setEnergy(600)" id="e600">600 keV</button>
+  <button onclick="setEnergy(300)" id="e300">300 keV</button>
+  <button onclick="setEnergy(150)" id="e150">150 keV</button>
+</div>
+
+<div class="stats">
+  <div class="stat-box">
+    <div class="label">発射した陽子</div>
+    <div class="value" id="sFired">0</div>
+  </div>
+  <div class="stat-box">
+    <div class="label">核融合した数</div>
+    <div class="value" id="sFused">0</div>
+  </div>
+  <div class="stat-box">
+    <div class="label">核融合確率</div>
+    <div class="value" id="sProb">—</div>
+  </div>
+  <div class="stat-box">
+    <div class="label">Q値（出力/入力）</div>
+    <div class="value" id="sQ">—</div>
+  </div>
+</div>
+
+<div class="explanation">
+  <h3>エネルギーの行き先</h3>
+  <div class="bar-wrap">
+    <div class="bar-label">電子加熱（阻止能でロス）</div>
+    <div class="bar-bg"><div class="bar-fill" id="barElec" style="width:0%;background:#ff4466;"></div><div class="bar-text" id="barElecT">0%</div></div>
+  </div>
+  <div class="bar-wrap">
+    <div class="bar-label">核融合エネルギー出���</div>
+    <div class="bar-bg"><div class="bar-fill" id="barFusion" style="width:0%;background:#44ff88;"></div><div class="bar-text" id="barFusionT">0%</div></div>
+  </div>
+  <div style="margin-top:10px;color:#aaa;font-size:0.8em;">
+    電子阻止能 ≈ 100 keV/μm — 陽子は数μmで止まる。核融合確率 ~10��⁶。<br>
+    発電にはQ > 1 が必要だが、ビーム-ターゲットでは Q ≈ 10⁻⁵。
+  </div>
+</div>
+
+</div>
+
+<script>
+const canvas = document.getElementById('sim');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+// Boron target region
+const TARGET_X = 420;
+const TARGET_W = 400;
+
+// State
+let protonEnergy = 600; // keV
+let totalFired = 0;
+let totalFused = 0;
+let totalInputE = 0;
+let totalOutputE = 0;
+let autoMode = false;
+let autoTimer = null;
+
+// Active protons
+const protons = [];
+// Active alphas
+const alphas = [];
+// Electron hits (visual sparks)
+const sparks = [];
+// Fusion flashes
+const flashes = [];
+
+// Lattice dots for boron
+const lattice = [];
+for (let x = TARGET_X + 15; x < TARGET_X + TARGET_W - 10; x += 20) {
+  for (let y = 25; y < H - 15; y += 20) {
+    lattice.push({ x: x + (Math.random()-0.5)*4, y: y + (Math.random()-0.5)*4 });
+  }
+}
+
+function setEnergy(e) {
+  protonEnergy = e;
+  document.querySelectorAll('.controls button[id^="e"]').forEach(b => b.classList.remove('active'));
+  document.getElementById('e'+e).classList.add('active');
+}
+
+function fireProton() {
+  const y = 60 + Math.random() * (H - 120);
+  protons.push({
+    x: 40,
+    y: y,
+    vx: 4 + Math.random() * 1,
+    energy: protonEnergy,
+    initialE: protonEnergy,
+    trail: [],
+    inTarget: false,
+    fused: false,
+    stopped: false,
+    fusionChecked: false,
+  });
+  totalFired++;
+  totalInputE += protonEnergy;
+  updateStats();
+}
+
+function toggleAuto() {
+  autoMode = !autoMode;
+  document.getElementById('btnAuto').classList.toggle('active', autoMode);
+  if (autoMode) {
+    autoTimer = setInterval(() => {
+      for (let i = 0; i < 3; i++) fireProton();
+    }, 120);
+  } else {
+    clearInterval(autoTimer);
+  }
+}
+
+function resetStats() {
+  totalFired = 0; totalFused = 0; totalInputE = 0; totalOutputE = 0;
+  protons.length = 0; alphas.length = 0; sparks.length = 0; flashes.length = 0;
+  updateStats();
+}
+
+function updateStats() {
+  document.getElementById('sFired').textContent = totalFired;
+  document.getElementById('sFused').textContent = totalFused;
+
+  if (totalFired > 0) {
+    const prob = totalFused / totalFired;
+    document.getElementById('sProb').textContent = prob === 0 ? '0' : prob.toExponential(1);
+
+    const q = totalInputE > 0 ? totalOutputE / totalInputE : 0;
+    document.getElementById('sQ').textContent = q === 0 ? '≈ 0' : q.toExponential(1);
+  } else {
+    document.getElementById('sProb').textContent = '—';
+    document.getElementById('sQ').textContent = '—';
+  }
+
+  // Energy bars
+  const elecE = totalInputE - totalOutputE;
+  const total = Math.max(totalInputE, 1);
+  const elecPct = (elecE / total * 100);
+  const fusPct = (totalOutputE / total * 100);
+  document.getElementById('barElec').style.width = Math.min(elecPct, 100) + '%';
+  document.getElementById('barElecT').textContent = elecPct.toFixed(elecPct > 1 ? 1 : 4) + '%';
+  document.getElementById('barFusion').style.width = Math.min(Math.max(fusPct, 0), 100) + '%';
+  document.getElementById('barFusionT').textContent = fusPct > 0.001 ? fusPct.toFixed(4) + '%' : '��� 0%';
+}
+
+function drawBackground() {
+  ctx.fillStyle = '#050510';
+  ctx.fillRect(0, 0, W, H);
+
+  // Beam source
+  ctx.fillStyle = '#1a2a3a';
+  ctx.fillRect(0, 0, 60, H);
+  ctx.strokeStyle = '#334';
+  ctx.strokeRect(0, 0, 60, H);
+  ctx.fillStyle = '#88ccff88';
+  ctx.font = '11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.save();
+  ctx.translate(25, H/2);
+  ctx.rotate(-Math.PI/2);
+  ctx.fillText('陽子加速器', 0, 0);
+  ctx.restore();
+
+  // Gap (vacuum)
+  ctx.fillStyle = '#08081a';
+  ctx.fillRect(60, 0, TARGET_X - 60, H);
+  ctx.fillStyle = '#33556622';
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('真空', (60 + TARGET_X) / 2, H/2);
+
+  // Boron target
+  const grad = ctx.createLinearGradient(TARGET_X, 0, TARGET_X + TARGET_W, 0);
+  grad.addColorStop(0, '#2a1a0a');
+  grad.addColorStop(0.3, '#1a1208');
+  grad.addColorStop(1, '#0f0a04');
+  ctx.fillStyle = grad;
+  ctx.fillRect(TARGET_X, 0, TARGET_W, H);
+  ctx.strokeStyle = '#553a1a';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(TARGET_X, 0, TARGET_W, H);
+
+  // Label
+  ctx.fillStyle = '#aa884488';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('固体 ¹¹B（ホウ素）', TARGET_X + TARGET_W/2, 22);
+
+  // Lattice dots
+  ctx.fillStyle = '#44331133';
+  for (const dot of lattice) {
+    ctx.beginPath();
+    ctx.arc(dot.x, dot.y, 2.5, 0, Math.PI*2);
+    ctx.fill();
+  }
+}
+
+function updateAndDrawProtons() {
+  for (let i = protons.length - 1; i >= 0; i--) {
+    const p = protons[i];
+
+    if (p.stopped) {
+      p.trail.shift();
+      if (p.trail.length === 0) protons.splice(i, 1);
+      continue;
+    }
+
+    // Move
+    p.x += p.vx;
+    p.y += (Math.random() - 0.5) * 0.3;
+    p.trail.push({ x: p.x, y: p.y });
+    if (p.trail.length > 40) p.trail.shift();
+
+    // In target?
+    if (p.x >= TARGET_X && !p.inTarget) {
+      p.inTarget = true;
+    }
+
+    if (p.inTarget) {
+      // Energy loss: ~100 keV/μm, 1px ≈ 0.02μm (scaled for visualization)
+      const loss = 2.5 + Math.random() * 1.5; // keV per frame (visual scale)
+      p.energy -= loss;
+      p.vx *= 0.985; // slow down
+
+      // Electron scattering sparks
+      if (Math.random() < 0.3) {
+        sparks.push({
+          x: p.x, y: p.y,
+          vx: (Math.random()-0.5) * 3,
+          vy: (Math.random()-0.5) * 3,
+          life: 8 + Math.random() * 6,
+        });
+      }
+
+      // Fusion check - probability ~1e-6 per proton, scaled up for visualization
+      // We use ~1/500 so users can see fusions happen occasionally
+      if (!p.fusionChecked && p.energy < p.initialE * 0.5 && p.energy > 50) {
+        p.fusionChecked = true;
+        const fusionProb = protonEnergy >= 400 ? 0.002 : protonEnergy >= 200 ? 0.0005 : 0.0001;
+        if (Math.random() < fusionProb) {
+          p.fused = true;
+          p.stopped = true;
+          totalFused++;
+          totalOutputE += 8700; // 8.7 MeV in keV
+
+          // Spawn 3 alpha particles
+          for (let a = 0; a < 3; a++) {
+            const angle = (a / 3) * Math.PI * 2 + Math.random() * 0.5;
+            alphas.push({
+              x: p.x, y: p.y,
+              vx: Math.cos(angle) * (4 + Math.random()*3),
+              vy: Math.sin(angle) * (4 + Math.random()*3),
+              life: 50 + Math.random() * 30,
+              trail: [],
+            });
+          }
+
+          // Flash
+          flashes.push({ x: p.x, y: p.y, r: 5, maxR: 50, alpha: 1 });
+          updateStats();
+        }
+      }
+
+      // Stopped
+      if (p.energy <= 0 || p.vx < 0.3) {
+        p.stopped = true;
+      }
+    }
+
+    // Off screen
+    if (p.x > W + 20) {
+      protons.splice(i, 1);
+      continue;
+    }
+
+    // Draw trail
+    if (p.trail.length > 1) {
+      ctx.beginPath();
+      ctx.moveTo(p.trail[0].x, p.trail[0].y);
+      for (let t = 1; t < p.trail.length; t++) {
+        ctx.lineTo(p.trail[t].x, p.trail[t].y);
+      }
+      const trailAlpha = p.inTarget ? 0.4 : 0.7;
+      ctx.strokeStyle = p.fused ? `rgba(255,255,100,${trailAlpha})` : `rgba(68,180,255,${trailAlpha})`;
+      ctx.lineWidth = p.inTarget ? 1.5 : 2;
+      ctx.stroke();
+    }
+
+    // Draw proton
+    if (!p.stopped) {
+      const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 8);
+      const color = p.inTarget ? '255,150,50' : '68,180,255';
+      glow.addColorStop(0, `rgba(${color},0.9)`);
+      glow.addColorStop(1, `rgba(${color},0)`);
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 8, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.fillStyle = p.inTarget ? '#ffaa44' : '#44bbff';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
+      ctx.fill();
+
+      // Energy label
+      if (p.inTarget) {
+        ctx.fillStyle = '#ff886688';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(Math.max(0, p.energy|0) + ' keV', p.x + 8, p.y - 6);
+      }
+    }
+  }
+}
+
+function updateAndDrawAlphas() {
+  for (let i = alphas.length - 1; i >= 0; i--) {
+    const a = alphas[i];
+    a.x += a.vx;
+    a.y += a.vy;
+    a.life--;
+    a.trail.push({x: a.x, y: a.y});
+    if (a.trail.length > 15) a.trail.shift();
+
+    if (a.life <= 0 || a.x < -20 || a.x > W+20 || a.y < -20 || a.y > H+20) {
+      alphas.splice(i, 1);
+      continue;
+    }
+
+    // Draw trail
+    if (a.trail.length > 1) {
+      ctx.beginPath();
+      ctx.moveTo(a.trail[0].x, a.trail[0].y);
+      for (let t = 1; t < a.trail.length; t++) {
+        ctx.lineTo(a.trail[t].x, a.trail[t].y);
+      }
+      ctx.strokeStyle = `rgba(255,255,100,${a.life/80})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // Draw alpha
+    const glow = ctx.createRadialGradient(a.x, a.y, 0, a.x, a.y, 10);
+    glow.addColorStop(0, `rgba(255,255,100,${a.life/50})`);
+    glow.addColorStop(1, `rgba(255,200,0,0)`);
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(a.x, a.y, 10, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.fillStyle = `rgba(255,255,200,${a.life/50})`;
+    ctx.beginPath();
+    ctx.arc(a.x, a.y, 3.5, 0, Math.PI*2);
+    ctx.fill();
+  }
+}
+
+function updateAndDrawSparks() {
+  for (let i = sparks.length - 1; i >= 0; i--) {
+    const s = sparks[i];
+    s.x += s.vx;
+    s.y += s.vy;
+    s.life--;
+    if (s.life <= 0) { sparks.splice(i, 1); continue; }
+
+    ctx.fillStyle = `rgba(255,100,100,${s.life/15})`;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, 1.5, 0, Math.PI*2);
+    ctx.fill();
+  }
+}
+
+function updateAndDrawFlashes() {
+  for (let i = flashes.length - 1; i >= 0; i--) {
+    const f = flashes[i];
+    f.r += 3;
+    f.alpha -= 0.03;
+    if (f.alpha <= 0) { flashes.splice(i, 1); continue; }
+
+    const glow = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r);
+    glow.addColorStop(0, `rgba(255,255,200,${f.alpha})`);
+    glow.addColorStop(0.5, `rgba(255,200,50,${f.alpha*0.5})`);
+    glow.addColorStop(1, `rgba(255,100,0,0)`);
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(f.x, f.y, f.r, 0, Math.PI*2);
+    ctx.fill();
+  }
+}
+
+function drawLegend() {
+  const lx = 65, ly = H - 55;
+  ctx.fillStyle = '#0a0a1abb';
+  ctx.fillRect(lx, ly, 200, 50);
+
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'left';
+
+  ctx.fillStyle = '#44bbff';
+  ctx.beginPath(); ctx.arc(lx+10, ly+12, 4, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#aaa';
+  ctx.fillText('陽子 (p)', lx+20, ly+16);
+
+  ctx.fillStyle = '#ff6644';
+  ctx.beginPath(); ctx.arc(lx+10, ly+28, 3, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#aaa';
+  ctx.fillText('電子散乱（エネルギーロス）', lx+20, ly+32);
+
+  ctx.fillStyle = '#ffff66';
+  ctx.beginPath(); ctx.arc(lx+10, ly+44, 4, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#aaa';
+  ctx.fillText('α粒子（核融合生成物）', lx+20, ly+48);
+}
+
+function frame() {
+  drawBackground();
+  updateAndDrawSparks();
+  updateAndDrawFlashes();
+  updateAndDrawProtons();
+  updateAndDrawAlphas();
+  drawLegend();
+  requestAnimationFrame(frame);
+}
+
+frame();
+</script>
+</body>
+</html>

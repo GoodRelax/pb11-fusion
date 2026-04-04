@@ -86,7 +86,8 @@ pb11-fusion/
 | 電荷中性・Z_eff | [📄 md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/charge-neutrality.md) | [▶ html](https://goodrelax.github.io/pb11-fusion/simulations/charge-neutrality.html) |
 | ラーモア半径と電子排除 | [📄 md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/larmor-radius.md) | [▶ html](https://goodrelax.github.io/pb11-fusion/simulations/larmor-radius.html) |
 | 核融合燃料の比較 | [📄 md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/fuel-comparison.md) | [▶ html](https://goodrelax.github.io/pb11-fusion/simulations/fuel-comparison.html) |
-| 距離・時間スケール | [📄 md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/fusion-timescales.md) | [▶ html](https://goodrelax.github.io/pb11-fusion/simulations/fusion-timescales.html) |
+| 距離・時間スケ��ル | [📄 md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/fusion-timescales.md) | [▶ html](https://goodrelax.github.io/pb11-fusion/simulations/fusion-timescales.html) |
+| ビーム-ターゲット核融合 | [📄 md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/beam-target.md) | [▶ html](https://goodrelax.github.io/pb11-fusion/simulations/beam-target.html) |
 
 **4サイクル方式の分析:**
 
