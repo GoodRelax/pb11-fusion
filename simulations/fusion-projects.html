@@ -92,6 +92,7 @@ tr.highlight td { color: #ffcc44; }
   <th onclick="sortTable(8)">到達<span class="sort-arrow"></span></th>
   <th onclick="sortTable(9)">資金<span class="sort-arrow"></span></th>
   <th>参考になる点</th>
+  <th>詳細</th>
 </tr>
 </thead>
 <tbody id="tbody">
@@ -105,33 +106,34 @@ tr.highlight td { color: #ffcc44; }
 
 <script>
 const data = [
-  // [name, fuel, confinement, topology, pulse, tite, brem, powergen, milestone, funding, steal, fuelCat, confCat, isUs]
-  ["JET (EU, 1983-2023)", "D-T", "M トカマク", "S 定常", "準定常", "なし", "低Z燃料で軽い", "熱→タービン", "プラズマ実証 Q=0.67", "~数千億", "長時間プラズマ維持の知見", "D-T", "M", false],
-  ["JT-60 (日本, 1985-)", "D-D", "M トカマク", "S 定常", "準定常", "なし", "低Z燃料で軽い", "—", "D-D等価Q=1.25", "~数千億", "高温プラズマ診断技術", "D-T", "M", false],
-  ["ITER (国際, 建設中)", "D-T", "M トカマク", "S 定常", "準定常", "なし", "低Z燃料で軽い", "熱（発電せず）", "建設中 (Q=10目標)", "3兆円超", "超伝導磁石、プラズマ制御", "D-T", "M", false],
-  ["SPARC/ARC (CFS, MIT)", "D-T", "M トカマク", "S 定常", "準定常", "なし", "低Z燃料で軽い", "熱→タービン", "建設中 (2026)", "~3000億", "HTS高温超伝導磁石（小型化）", "D-T", "M", false],
-  ["Tokamak Energy (英)", "D-T", "M 球状トカマク", "S 定常", "準定常", "なし", "低Z燃料で軽い", "熱→タービン", "プラズマ実証", "~500億", "球状トカマクの高β運転", "D-T", "M", false],
-  ["W7-X (独, 2015-)", "H", "M ステラレータ", "S 定常", "定常", "なし", "—", "—", "プラズマ実証", "~1500億", "3D磁場最適化、定常運転", "other", "M", false],
-  ["Type One Energy (米)", "D-T", "M ステラレータ", "S 定常", "定常", "なし", "低Z燃料で軽い", "熱→タービン", "概念", "~200億", "AI設計の最適化コイル", "D-T", "M", false],
-  ["TAE Technologies (米)", "p-B11(目標)", "M FRC", "S 定常", "準定常", "あり（段階NBI）", "段階加熱でTi>Te", "直接変換(目標)", "プラズマ実証", "~1500億", "NBI段階加熱でのTi/Te分離実績", "p-B11", "M", false],
-  ["Helion Energy (米)", "D-³He", "M FRC衝突", "C 圧縮", "パルス", "部分的", "低Z(D-³He)で軽い", "直接変換(誘導)", "プラズマ実証", "~800億", "FRC衝突圧縮、直接発電回路", "D-³He", "M", false],
-  ["Princeton FRC (米)", "D-T", "M FRC", "S 定常", "準定常", "なし", "低Z燃料で軽い", "熱→タービン", "概念", "少額", "コンパクトFRC設計", "D-T", "M", false],
-  ["LINEA (日本)", "p-B11", "M FRC+ミラー磁場", "S 定常", "準定常", "高Eビーム(非熱的)", "FRC+ミラーで非熱的核融合", "直接変換(目標)", "研究開発段階", "未公開", "FRC+ミラー磁場の独自組合せ。電子排出と直結", "p-B11", "M", false],
-  ["MagLIF (Sandia)", "D-T", "H Zピンチ+磁場", "C 体→線→点", "パルス", "部分的(断熱圧縮)", "低Z燃料で軽い", "熱→タービン", "原理実証(中性子)", "数百億(DOE)", "磁化ライナー慣性核融合の実績", "D-T", "H", false],
-  ["Zap Energy (米)", "D-T", "M 剪断流Zピンチ", "C 体→線", "パルス", "なし", "低Z燃料で軽い", "熱→タービン", "プラズマ実証", "~400億", "剪断流によるZピンチ安定化", "D-T", "M", false],
-  ["Dense Plasma Focus", "D-T/D-D", "I DPF", "C 体→点", "パルス", "部分的", "—", "—", "原理実証", "少額", "超高密度・超短パルスの知見", "D-T", "I", false],
-  ["NIF (米, LLNL)", "D-T", "I レーザー間接", "D 体→点", "パルス", "なし", "低Z。光学的に厚い", "熱→タービン", "Q科学>1 (2022)", "数兆円", "超高密度圧縮の物理データ", "D-T", "I", false],
-  ["First Light Fusion (英)", "D-T", "I 弾丸衝撃", "D 体→点", "パルス", "なし", "低Z燃料で軽い", "熱→タービン", "原理実証(中性子)", "~200億", "弾丸衝撃による低コスト圧縮", "D-T", "I", false],
-  ["Focused Energy (独/米)", "D-T", "I レーザー直接", "D 体→点", "パルス", "なし", "低Z燃料で軽い", "熱→タービン", "概念", "~100億", "直接照射レーザー設計", "D-T", "I", false],
-  ["Xcimer Energy (米)", "D-T", "I エキシマレーザー", "D 体→点", "パルス", "なし", "低Z燃料で軽い", "熱→タービン", "概念", "~200億", "大面積・低コストレーザー", "D-T", "I", false],
-  ["Marvel Fusion (独)", "p-B11", "I レーザー", "D 体→点", "パルス", "なし", "なし（直球勝負）", "直接変換(目標)", "概念", "~200億", "p-B11をレーザー慣性で狙う勇気", "p-B11", "I", false],
-  ["HB11 Energy (豪)", "p-B11", "I レーザー+磁場", "D 体→点", "パルス", "部分的(磁場)", "強磁場中レーザー点火", "直接変換(目標)", "概念", "~50億", "kT級磁場でのα粒子閉じ込め", "p-B11", "I", false],
-  ["General Fusion (加)", "D-T", "H 磁化ターゲット", "C 体→点", "パルス", "なし", "低Z燃料で軽い", "熱→タービン", "プラズマ実証", "~600億", "液体金属壁（回転Pb-Li）", "D-T", "H", false],
-  ["Lockheed Martin CFR (米)", "D-T", "M コンパクト", "S 定常", "準定常", "なし", "低Z燃料で軽い", "熱→タービン", "概念(進展不明)", "非公開", "コンパクト磁気ミラー設計", "D-T", "M", false],
-  ["磁気ミラー (歴史的)", "D-T", "M ミラー", "S 定常", "定常", "なし", "低Z燃料で軽い", "熱→タービン", "原理実証(1970s)", "—", "端損失の物理（電子排出に直結）", "D-T", "M", false],
-  ["フューザー (Farnsworth)", "D-D", "I 慣性静電", "—", "定常", "なし", "—", "—", "原理実証(NET不可)", "少額", "教育用。NET不可能", "other", "I", false],
-  ["ポリウェル (EMC2)", "D-D/p-B11", "I 慣性静電+磁場", "—", "定常", "なし", "—", "—", "概念", "少額", "静電ポテンシャル井戸", "other", "I", false],
-  ["4サイクル案（本プロジェクト）", "p-B11", "H Zピンチ+eビーム", "C 体→線→点", "パルス", "あり（3つの抜け道）", "非MW+超短パルス+e排出", "直接変換", "概念（思考実験）", "0円", "← これが我々", "p-B11", "H", true],
+  // [name, fuel, confinement, topology, pulse, tite, brem, powergen, milestone, funding, steal, fuelCat, confCat, isUs, links]
+  // links: null | { md: "slug", html: "slug" } — slug は yomons/xxx.md, simulations/xxx.html に対応
+  ["JET (EU, 1983-2023)", "D-T", "M トカマク", "S 定常", "準定常", "なし", "低Z燃料で軽い", "熱→タービン", "プラズマ実証 Q=0.67", "~数千億", "長時間プラズマ維持の知見", "D-T", "M", false, null],
+  ["JT-60 (日本, 1985-)", "D-D", "M トカマク", "S 定常", "準定常", "なし", "低Z燃料で軽い", "—", "D-D等価Q=1.25", "~数千億", "高温プラズマ診断技術", "D-T", "M", false, null],
+  ["ITER (国際, 建設中)", "D-T", "M トカマク", "S 定常", "準定常", "なし", "低Z燃料で軽い", "熱（発電せず）", "建設中 (Q=10目標)", "3兆円超", "超伝導磁石、プラズマ制御", "D-T", "M", false, null],
+  ["SPARC/ARC (CFS, MIT)", "D-T", "M トカマク", "S 定常", "準定常", "なし", "低Z燃料で軽い", "熱→タービン", "建設中 (2026)", "~3000億", "HTS高温超伝導磁石（小型化）", "D-T", "M", false, null],
+  ["Tokamak Energy (英)", "D-T", "M 球状トカマク", "S 定常", "準定常", "なし", "低Z燃料で軽い", "熱→タービン", "プラズマ実証", "~500億", "球状トカマクの高β運転", "D-T", "M", false, null],
+  ["W7-X (独, 2015-)", "H", "M ステラレータ", "S 定常", "定常", "なし", "—", "—", "プラズマ実証", "~1500億", "3D磁場最適化、定常運転", "other", "M", false, null],
+  ["Type One Energy (米)", "D-T", "M ステラレータ", "S 定常", "定常", "なし", "低Z燃料で軽い", "熱→タービン", "概念", "~200億", "AI設計の最適化コイル", "D-T", "M", false, null],
+  ["TAE Technologies (米)", "p-B11(目標)", "M FRC", "S 定常", "準定常", "あり（段階NBI）", "段階加熱でTi>Te", "直接変換(目標)", "プラズマ実証", "~1500億", "NBI段階加熱でのTi/Te分離実績", "p-B11", "M", false, {md:"tae-technologies", html:"tae-technologies"}],
+  ["Helion Energy (米)", "D-³He", "M FRC衝突", "C 圧縮", "パルス", "部分的", "低Z(D-³He)で軽い", "直接変換(誘導)", "プラズマ実証", "~800億", "FRC衝突圧縮、直接発電回路", "D-³He", "M", false, {md:"helion-energy", html:"helion-energy"}],
+  ["Princeton FRC (米)", "D-T", "M FRC", "S 定常", "準定常", "なし", "低Z燃料で軽い", "熱→タービン", "概念", "少額", "コンパクトFRC設計", "D-T", "M", false, null],
+  ["LINEA (日本)", "p-B11", "M FRC+ミラー磁場", "S 定常", "準定常", "高Eビーム(非熱的)", "FRC+ミラーで非熱的核融合", "直接変換(目標)", "研究開発段階", "未公開", "FRC+ミラー磁場の独自組合せ。電子排出と直結", "p-B11", "M", false, {md:"linea", html:"linea"}],
+  ["MagLIF (Sandia)", "D-T", "H Zピンチ+磁場", "C 体→線→点", "パルス", "部分的(断熱圧縮)", "低Z燃料で軽い", "熱→タービン", "原理実証(中性子)", "数百億(DOE)", "磁化ライナー慣性核融合の実績", "D-T", "H", false, {md:"maglif", html:"maglif"}],
+  ["Zap Energy (米)", "D-T", "M 剪断流Zピンチ", "C 体→線", "パルス", "なし", "低Z燃料で軽い", "熱→タービン", "プラズマ実証", "~400億", "剪断流によるZピンチ安定化", "D-T", "M", false, null],
+  ["Dense Plasma Focus", "D-T/D-D", "I DPF", "C 体→点", "パルス", "部分的", "—", "—", "原理実証", "少額", "超高密度・超短パルスの知見", "D-T", "I", false, null],
+  ["NIF (米, LLNL)", "D-T", "I レーザー間接", "D 体→点", "パルス", "なし", "低Z。光学的に厚い", "熱→タービン", "Q科学>1 (2022)", "数兆円", "超高密度圧縮の物理データ", "D-T", "I", false, null],
+  ["First Light Fusion (英)", "D-T", "I 弾丸衝撃", "D 体→点", "パルス", "なし", "低Z燃料で軽い", "熱→タービン", "原理実証(中性子)", "~200億", "弾丸衝撃による低コスト圧縮", "D-T", "I", false, null],
+  ["Focused Energy (独/米)", "D-T", "I レーザー直接", "D 体→点", "パルス", "なし", "低Z燃料で軽い", "熱→タービン", "概念", "~100億", "直接照射レーザー設計", "D-T", "I", false, null],
+  ["Xcimer Energy (米)", "D-T", "I エキシマレーザー", "D 体→点", "パルス", "なし", "低Z燃料で軽い", "熱→タービン", "概念", "~200億", "大面積・低コストレーザー", "D-T", "I", false, null],
+  ["Marvel Fusion (独)", "p-B11", "I レーザー", "D 体→点", "パルス", "なし", "なし（直球勝負）", "直接変換(目標)", "概念", "~200億", "p-B11をレーザー慣性で狙う勇気", "p-B11", "I", false, null],
+  ["HB11 Energy (豪)", "p-B11", "I レーザー+磁場", "D 体→点", "パルス", "部分的(磁場)", "強磁場中レーザー点火", "直接変換(目標)", "概念", "~50億", "kT級磁場でのα粒子閉じ込め", "p-B11", "I", false, null],
+  ["General Fusion (加)", "D-T", "H 磁化ターゲット", "C 体→点", "パルス", "なし", "低Z燃料で軽い", "熱→タービン", "プラズマ実証", "~600億", "液体金属壁（回転Pb-Li）", "D-T", "H", false, null],
+  ["Lockheed Martin CFR (米)", "D-T", "M コンパクト", "S 定常", "準定常", "なし", "低Z燃料で軽い", "熱→タービン", "概念(進展不明)", "非公開", "コンパクト磁気ミラー設計", "D-T", "M", false, null],
+  ["磁気ミラー (歴史的)", "D-T", "M ミラー", "S 定常", "定常", "なし", "低Z燃料で軽い", "熱→タービン", "原理実証(1970s)", "—", "端損失の物理（電子排出に直結）", "D-T", "M", false, null],
+  ["フューザー (Farnsworth)", "D-D", "I 慣性静電", "—", "定常", "なし", "—", "—", "原理実証(NET不可)", "少額", "教育用。NET不可能", "other", "I", false, null],
+  ["ポリウェル (EMC2)", "D-D/p-B11", "I 慣性静電+磁場", "—", "定常", "なし", "—", "—", "概念", "少額", "静電ポテンシャル井戸", "other", "I", false, null],
+  ["4サイクル案（本プロジェクト）", "p-B11", "H Zピンチ+eビーム", "C 体→線→点", "パルス", "あり（3つの抜け道）", "非MW+超短パルス+e排出", "直接変換", "概念（思考実験）", "0円", "← これが我々", "p-B11", "H", true, null],
 ];
 
 const filters = { fuel: { 'D-T': true, 'D-³He': true, 'p-B11': true, 'other': true }, conf: { 'M': true, 'I': true, 'H': true } };
@@ -165,6 +167,14 @@ function pulseTag(p) {
   return tag(p, 'tag-steady');
 }
 
+function linksCell(links) {
+  if (!links) return '—';
+  const mdUrl = `https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/${links.md}.md`;
+  const htmlUrl = `https://goodrelax.github.io/pb11-fusion/simulations/${links.html}.html`;
+  return `<a href="${mdUrl}" target="_blank" style="color:#88ccff;text-decoration:none">📄md</a> ` +
+         `<a href="${htmlUrl}" target="_blank" style="color:#ffaa44;text-decoration:none">▶html</a>`;
+}
+
 function renderTable() {
   const tbody = document.getElementById('tbody');
   tbody.innerHTML = '';
@@ -187,6 +197,7 @@ function renderTable() {
       <td>${d[8]}</td>
       <td>${d[9]}</td>
       <td class="steal">${d[10]}</td>
+      <td style="text-align:center">${linksCell(d[14])}</td>
     `;
     tbody.appendChild(tr);
   });
