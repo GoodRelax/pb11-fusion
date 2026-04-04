@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>核融合プロジェクト比較</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a1a; color: #e0e0e0; font-family: 'Segoe UI', 'Hiragino Sans', sans-serif; font-size: 13px; }
+h1 { text-align: center; padding: 14px; font-size: 1.3em; color: #88ccff; }
+.subtitle { text-align: center; color: #888; font-size: 0.8em; margin-bottom: 10px; }
+.container { max-width: 1200px; margin: 0 auto; padding: 0 8px; }
+.filters {
+  display: flex; gap: 6px; flex-wrap: wrap; justify-content: center;
+  padding: 8px; margin-bottom: 8px;
+}
+.filters button {
+  background: #1a1a3a; color: #88ccff; border: 1px solid #444;
+  padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 0.78em;
+}
+.filters button:hover { background: #2a2a5a; }
+.filters button.on { border-color: #ffaa00; color: #ffaa00; background: #2a2a1a; }
+.table-wrap { overflow-x: auto; border-radius: 8px; }
+table {
+  width: 100%; border-collapse: collapse; background: #111128;
+  font-size: 0.82em; white-space: nowrap;
+}
+th {
+  background: #1a1a3a; color: #88ccff; padding: 8px 10px;
+  border: 1px solid #333; position: sticky; top: 0; cursor: pointer;
+  user-select: none;
+}
+th:hover { background: #2a2a5a; }
+th .sort-arrow { font-size: 0.7em; margin-left: 3px; }
+td {
+  padding: 6px 10px; border: 1px solid #222; vertical-align: top;
+  white-space: normal; max-width: 200px;
+}
+tr:hover { background: #1a1a2a; }
+tr.highlight { background: #2a2a10; }
+tr.highlight td { color: #ffcc44; }
+.tag {
+  display: inline-block; padding: 1px 6px; border-radius: 3px;
+  font-size: 0.8em; margin: 1px;
+}
+.tag-dt { background: #334; color: #88bbff; }
+.tag-dhe3 { background: #233; color: #44ddbb; }
+.tag-pb11 { background: #432; color: #ffaa44; }
+.tag-m { background: #223; color: #88aaff; }
+.tag-i { background: #322; color: #ff8866; }
+.tag-h { background: #232; color: #88ff88; }
+.tag-pulse { background: #323; color: #cc88ff; }
+.tag-steady { background: #233; color: #88ddcc; }
+.tag-yes { background: #232; color: #44ff88; }
+.tag-partial { background: #332; color: #ffcc44; }
+.tag-no { background: #222; color: #888; }
+.steal { color: #ffcc44; font-weight: bold; }
+.info { text-align: center; color: #666; padding: 6px; font-size: 0.75em; }
+</style>
+</head>
+<body>
+
+<h1>核融合プロジェクト比較</h1>
+<div class="subtitle">昭和のトカマクから最新スタートアップまで — 「隣から参考になる点」付き</div>
+
+<div class="container">
+
+<div class="filters">
+  <span style="color:#888;padding:4px">燃料:</span>
+  <button onclick="toggleFilter('fuel','D-T')" class="on" id="f-D-T">D-T</button>
+  <button onclick="toggleFilter('fuel','D-³He')" class="on" id="f-D-³He">D-³He</button>
+  <button onclick="toggleFilter('fuel','p-B11')" class="on" id="f-p-B11">p-B11</button>
+  <button onclick="toggleFilter('fuel','other')" class="on" id="f-other">その他</button>
+  <span style="color:#888;padding:4px;margin-left:10px">方式:</span>
+  <button onclick="toggleFilter('conf','M')" class="on" id="c-M">磁気</button>
+  <button onclick="toggleFilter('conf','I')" class="on" id="c-I">慣性</button>
+  <button onclick="toggleFilter('conf','H')" class="on" id="c-H">ハイブリッド</button>
+</div>
+
+<div class="table-wrap">
+<table id="mainTable">
+<thead>
+<tr>
+  <th onclick="sortTable(0)">プロジェクト<span class="sort-arrow"></span></th>
+  <th onclick="sortTable(1)">燃料<span class="sort-arrow"></span></th>
+  <th onclick="sortTable(2)">閉じ込め<span class="sort-arrow"></span></th>
+  <th onclick="sortTable(3)">圧縮<span class="sort-arrow"></span></th>
+  <th onclick="sortTable(4)">定常/パルス<span class="sort-arrow"></span></th>
+  <th onclick="sortTable(5)">Ti/Te分離<span class="sort-arrow"></span></th>
+  <th onclick="sortTable(6)">制動放射対策</th>
+  <th onclick="sortTable(7)">発電方式<span class="sort-arrow"></span></th>
+  <th onclick="sortTable(8)">到達<span class="sort-arrow"></span></th>
+  <th onclick="sortTable(9)">資金<span class="sort-arrow"></span></th>
+  <th>参考になる点</th>
+</tr>
+</thead>
+<tbody id="tbody">
+</tbody>
+</table>
+</div>
+
+<div class="info">クリックでソート | フィルタボタンで燃料・方式を絞り込み | 金色の行 = 本プロジェクト（4サイクル案）</div>
+
+</div>
+
+<script>
+const data = [
+  // [name, fuel, confinement, topology, pulse, tite, brem, powergen, milestone, funding, steal, fuelCat, confCat, isUs]
+  ["JET (EU, 1983-2023)", "D-T", "M トカマク", "S 定常", "準定常", "なし", "低Z燃料で軽い", "熱→タービン", "プラズマ実証 Q=0.67", "~数千億", "長時間プラズマ維持の知見", "D-T", "M", false],
+  ["JT-60 (日本, 1985-)", "D-D", "M トカマク", "S 定常", "準定常", "なし", "低Z燃料で軽い", "—", "D-D等価Q=1.25", "~数千億", "高温プラズマ診断技術", "D-T", "M", false],
+  ["ITER (国際, 建設中)", "D-T", "M トカマク", "S 定常", "準定常", "なし", "低Z燃料で軽い", "熱（発電せず）", "建設中 (Q=10目標)", "3兆円超", "超伝導磁石、プラズマ制御", "D-T", "M", false],
+  ["SPARC/ARC (CFS, MIT)", "D-T", "M トカマク", "S 定常", "準定常", "なし", "低Z燃料で軽い", "熱→タービン", "建設中 (2026)", "~3000億", "HTS高温超伝導磁石（小型化）", "D-T", "M", false],
+  ["Tokamak Energy (英)", "D-T", "M 球状トカマク", "S 定常", "準定常", "なし", "低Z燃料で軽い", "熱→タービン", "プラズマ実証", "~500億", "球状トカマクの高β運転", "D-T", "M", false],
+  ["W7-X (独, 2015-)", "H", "M ステラレータ", "S 定常", "定常", "なし", "—", "—", "プラズマ実証", "~1500億", "3D磁場最適化、定常運転", "other", "M", false],
+  ["Type One Energy (米)", "D-T", "M ステラレータ", "S 定常", "定常", "なし", "低Z燃料で軽い", "熱→タービン", "概念", "~200億", "AI設計の最適化コイル", "D-T", "M", false],
+  ["TAE Technologies (米)", "p-B11(目標)", "M FRC", "S 定常", "準定常", "あり（段階NBI）", "段階加熱でTi>Te", "直接変換(目標)", "プラズマ実証", "~1500億", "NBI段階加熱でのTi/Te分離実績", "p-B11", "M", false],
+  ["Helion Energy (米)", "D-³He", "M FRC衝突", "C 圧縮", "パルス", "部分的", "低Z(D-³He)で軽い", "直接変換(誘導)", "プラズマ実証", "~800億", "FRC衝突圧縮、直接発電回路", "D-³He", "M", false],
+  ["Princeton FRC (米)", "D-T", "M FRC", "S 定常", "準定常", "なし", "低Z燃料で軽い", "熱→タービン", "概念", "少額", "コンパクトFRC設計", "D-T", "M", false],
+  ["MagLIF (Sandia)", "D-T", "H Zピンチ+磁場", "C 体→線→点", "パルス", "部分的(断熱圧縮)", "低Z燃料で軽い", "熱→タービン", "原理実証(中性子)", "数百億(DOE)", "磁化ライナー慣性核融合の実績", "D-T", "H", false],
+  ["Zap Energy (米)", "D-T", "M 剪断流Zピンチ", "C 体→線", "パルス", "なし", "低Z燃料で軽い", "熱→タービン", "プラズマ実証", "~400億", "剪断流によるZピンチ安定化", "D-T", "M", false],
+  ["Dense Plasma Focus", "D-T/D-D", "I DPF", "C 体→点", "パルス", "部分的", "—", "—", "原理実証", "少額", "超高密度・超短パルスの知見", "D-T", "I", false],
+  ["NIF (米, LLNL)", "D-T", "I レーザー間接", "D 体→点", "パルス", "なし", "低Z。光学的に厚い", "熱→タービン", "Q科学>1 (2022)", "数兆円", "超高密度圧縮の物理データ", "D-T", "I", false],
+  ["First Light Fusion (英)", "D-T", "I 弾丸衝撃", "D 体→点", "パルス", "なし", "低Z燃料で軽い", "熱→タービン", "原理実証(中性子)", "~200億", "弾丸衝撃による低コスト圧縮", "D-T", "I", false],
+  ["Focused Energy (独/米)", "D-T", "I レーザー直接", "D 体→点", "パルス", "なし", "低Z燃料で軽い", "熱→タービン", "概念", "~100億", "直接照射レーザー設計", "D-T", "I", false],
+  ["Xcimer Energy (米)", "D-T", "I エキシマレーザー", "D 体→点", "パルス", "なし", "低Z燃料で軽い", "熱→タービン", "概念", "~200億", "大面積・低コストレーザー", "D-T", "I", false],
+  ["Marvel Fusion (独)", "p-B11", "I レーザー", "D 体→点", "パルス", "なし", "なし（直球勝負）", "直接変換(目標)", "概念", "~200億", "p-B11をレーザー慣性で狙う勇気", "p-B11", "I", false],
+  ["HB11 Energy (豪)", "p-B11", "I レーザー+磁場", "D 体→点", "パルス", "部分的(磁場)", "強磁場中レーザー点火", "直接変換(目標)", "概念", "~50億", "kT級磁場でのα粒子閉じ込め", "p-B11", "I", false],
+  ["General Fusion (加)", "D-T", "H 磁化ターゲット", "C 体→点", "パルス", "なし", "低Z燃料で軽い", "熱→タービン", "プラズマ実証", "~600億", "液体金属壁（回転Pb-Li）", "D-T", "H", false],
+  ["Lockheed Martin CFR (米)", "D-T", "M コンパクト", "S 定常", "準定常", "なし", "低Z燃料で軽い", "熱→タービン", "概念(進展不明)", "非公開", "コンパクト磁気ミラー設計", "D-T", "M", false],
+  ["磁気ミラー (歴史的)", "D-T", "M ミラー", "S 定常", "定常", "なし", "低Z燃料で軽い", "熱→タービン", "原理実証(1970s)", "—", "端損失の物理（電子排出に直結）", "D-T", "M", false],
+  ["フューザー (Farnsworth)", "D-D", "I 慣性静電", "—", "定常", "なし", "—", "—", "原理実証(NET不可)", "少額", "教育用。NET不可能", "other", "I", false],
+  ["ポリウェル (EMC2)", "D-D/p-B11", "I 慣性静電+磁場", "—", "定常", "なし", "—", "—", "概念", "少額", "静電ポテンシャル井戸", "other", "I", false],
+  ["4サイクル案（本プロジェクト）", "p-B11", "H Zピンチ+eビーム", "C 体→線→点", "パルス", "あり（3つの抜け道）", "非MW+超短パルス+e排出", "直接変換", "概念（思考実験）", "0円", "← これが我々", "p-B11", "H", true],
+];
+
+const filters = { fuel: { 'D-T': true, 'D-³He': true, 'p-B11': true, 'other': true }, conf: { 'M': true, 'I': true, 'H': true } };
+
+function toggleFilter(cat, val) {
+  filters[cat][val] = !filters[cat][val];
+  const id = cat === 'fuel' ? 'f-' + val : 'c-' + val;
+  document.getElementById(id).classList.toggle('on', filters[cat][val]);
+  renderTable();
+}
+
+function tag(text, cls) { return `<span class="tag ${cls}">${text}</span>`; }
+
+function fuelTag(f) {
+  if (f.includes('p-B11') || f.includes('p-B11')) return tag(f, 'tag-pb11');
+  if (f.includes('³He') || f.includes('He')) return tag(f, 'tag-dhe3');
+  return tag(f, 'tag-dt');
+}
+function confTag(c) {
+  if (c.startsWith('H')) return tag(c, 'tag-h');
+  if (c.startsWith('I')) return tag(c, 'tag-i');
+  return tag(c, 'tag-m');
+}
+function titeTag(t) {
+  if (t.startsWith('あり')) return tag(t, 'tag-yes');
+  if (t.startsWith('部分')) return tag(t, 'tag-partial');
+  return tag(t, 'tag-no');
+}
+function pulseTag(p) {
+  if (p === 'パルス') return tag(p, 'tag-pulse');
+  return tag(p, 'tag-steady');
+}
+
+function renderTable() {
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  const filtered = data.filter(d => {
+    const fc = d[11], cc = d[12];
+    return filters.fuel[fc] && filters.conf[cc];
+  });
+  filtered.forEach(d => {
+    const tr = document.createElement('tr');
+    if (d[13]) tr.className = 'highlight';
+    tr.innerHTML = `
+      <td><b>${d[0]}</b></td>
+      <td>${fuelTag(d[1])}</td>
+      <td>${confTag(d[2])}</td>
+      <td>${d[3]}</td>
+      <td>${pulseTag(d[4])}</td>
+      <td>${titeTag(d[5])}</td>
+      <td>${d[6]}</td>
+      <td>${d[7]}</td>
+      <td>${d[8]}</td>
+      <td>${d[9]}</td>
+      <td class="steal">${d[10]}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+let sortCol = -1, sortAsc = true;
+function sortTable(col) {
+  if (sortCol === col) sortAsc = !sortAsc;
+  else { sortCol = col; sortAsc = true; }
+  data.sort((a, b) => {
+    const va = a[col], vb = b[col];
+    const cmp = String(va).localeCompare(String(vb), 'ja');
+    return sortAsc ? cmp : -cmp;
+  });
+  renderTable();
+}
+
+renderTable();
+</script>
+</body>
+</html>
