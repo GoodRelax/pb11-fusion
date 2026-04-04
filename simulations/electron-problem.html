@@ -82,32 +82,45 @@ h1 { text-align:center; padding:12px; font-size:1.3em; color:#88ccff; }
   <div class="problem" id="detailProblem" style="display:none"></div>
 </div>
 
-<!-- 4-cycle combined strategy -->
+<!-- 4-cycle combined strategy (updated) -->
 <div class="combo">
-  <h3>4サイクル方式の合わせ技戦略</h3>
+  <h3>4サイクル方式の合わせ技戦略（修正版）</h3>
   <div class="combo-bar">
-    <span class="combo-label">ベースライン</span>
-    <div class="combo-fill" style="width:60px;background:#ff4466;">0.22</div>
-    <span style="color:#888;font-size:0.75em;">P_fusion / P_brem（マクスウェル分布、Ti/Te=10）</span>
+    <span class="combo-label">ベースライン（最新データ）</span>
+    <div class="combo-fill" style="width:130px;background:#ff8844;">1.0〜1.2</div>
+    <span style="color:#888;font-size:0.75em;">P_fus/P_brem（Putvinski 2019、熱平衡最適条件）</span>
   </div>
   <div class="combo-bar">
     <span class="combo-label">+ 非マクスウェル分布</span>
-    <div class="combo-fill" style="width:160px;background:#ff8844;">×3</div>
-    <span style="color:#888;font-size:0.75em;">ガモフピーク集中で P_fusion 改善</span>
+    <div class="combo-fill" style="width:230px;background:#ffaa44;">×2〜3</div>
+    <span style="color:#888;font-size:0.75em;">ガモフピーク集中（🟡 Rider vs Rostoker 論争中）</span>
   </div>
   <div class="combo-bar">
-    <span class="combo-label">+ 超短パルス Te抑制</span>
-    <div class="combo-fill" style="width:260px;background:#ffaa44;">×5</div>
-    <span style="color:#888;font-size:0.75em;">Te を 1/5 に抑制</span>
+    <span class="combo-label" style="text-decoration:line-through;color:#666;">+ 超短パルス Te抑制</span>
+    <div class="combo-fill" style="width:30px;background:#662222;">❌</div>
+    <span style="color:#f44;font-size:0.75em;">計算で否定（τ_eq/τ_burn = 0.0038、密度非依存）</span>
   </div>
   <div class="combo-bar">
     <span class="combo-label">+ 電子排出（10-20%）</span>
-    <div class="combo-fill" style="width:310px;background:#44cc88;">×1.5</div>
+    <div class="combo-fill" style="width:250px;background:#44cc88;">×0.64</div>
     <span style="color:#888;font-size:0.75em;">n_e 削減で P_brem を 0.64倍</span>
   </div>
-  <div class="combo-result">
-    合計: P_fusion / P_brem ≈ 2.3 — NETをギリギリ超える程度。全て未実証。
+  <div class="combo-bar">
+    <span class="combo-label">+ αチャネリング</span>
+    <div class="combo-fill" style="width:40px;background:#4466ff;">?</div>
+    <span style="color:#88f;font-size:0.75em;">P_ie を大幅削減（🔴 未実証、紙の上のみ）</span>
   </div>
+  <div class="combo-result" style="color:#fa0;">
+    ②なしの合計: P_fus/P_brem ≈ 1.9（①の楽観値）。①も効かなければ 0.64。<br>
+    <span style="color:#f44;">真の壁 P_ie/P_fus ≈ 74 はαチャネリングなしでは超えられない。</span>
+  </div>
+</div>
+
+<!-- 全経路の総括 -->
+<div class="combo" style="border-color:#f44;background:#1a0a0a;margin-top:14px;">
+  <h3 style="color:#f44;">全経路の総括 — p-B11の呪い</h3>
+  <div id="curseChart" style="margin:10px 0;"></div>
+  <canvas id="curseCanvas" width="880" height="220"></canvas>
 </div>
 
 </div>
@@ -123,10 +136,10 @@ const methods = [
     anim: 'magnetic',
   },
   {
-    num: '2', name: '超短パルス（時間で逃げる）',
-    principle: '熱平衡化 τ_eq ≈ 1μs に対し、燃焼を 1-10 ns で完了。電子が温まる前に核融合を終える。',
-    verdict: 'meh', verdictText: 'ns精度が必要',
-    problem: 'オーム加熱（J²ηΔt）を完全にゼロにはできない。Zピンチ電流自体が電子を加熱してしまう。MHD不安定性の成長時間（~100ns）との競争。',
+    num: '2', name: '超短パルス（時間で逃げる）❌',
+    principle: '熱平衡化 τ_eq ≈ 1μs に対し、燃焼を 1-10 ns で完了。電子が温まる前に核融合を終える — と考えたが、計算で否定された。',
+    verdict: 'bad', verdictText: '❌ 計算で否定',
+    problem: 'τ_eq/τ_burn = 0.0038（電子が燃焼の260倍速い）。この比率は密度に依存しない（τ_eq ∝ 1/n、τ_burn ∝ 1/n で打ち消す）。どの密度でも「電子が追いつく前に燃やし切る」ことは不可能。',
     anim: 'pulse',
   },
   {
@@ -668,6 +681,80 @@ animate();
 
 // Auto-select first method
 selectMethod(0);
+
+// === CURSE CHART ===
+const curseC = document.getElementById('curseCanvas');
+const curseCtx = curseC.getContext('2d');
+
+function drawCurse() {
+  const W=curseC.width, H=curseC.height;
+  curseCtx.clearRect(0,0,W,H);
+
+  const approaches = [
+    {label:'A. 空間的にどかす',     status:'❌', reason:'デバイ遮蔽 (~μm)',         color:'#f44'},
+    {label:'B. 時間的にどかす',     status:'❌', reason:'τ_eq/τ_burn=0.0038',      color:'#f44'},
+    {label:'C. 原子核に吸収',       status:'❌', reason:'閾値1.8MeV >> Te 0.3MeV',  color:'#f44'},
+    {label:'D. エネルギー回収',     status:'🟡', reason:'硬X線変換 10-20% (不足)',   color:'#fa0'},
+    {label:'E. バイパス(αチャネリング)', status:'🔴', reason:'未実証 (紙の上のみ)',  color:'#48f'},
+  ];
+
+  const rowH = 36, startY = 15, startX = 40;
+  const barStart = 290, barMax = 400;
+
+  // Root cause
+  curseCtx.fillStyle = '#f44';
+  curseCtx.font = 'bold 12px sans-serif';
+  curseCtx.textAlign = 'left';
+  curseCtx.fillText('根本原因: ホウ素 Z=5 → Z_eff²=18.8 → 電子が18倍有害', startX, startY);
+
+  for (let i = 0; i < approaches.length; i++) {
+    const a = approaches[i];
+    const y = startY + 20 + i * rowH;
+
+    // Status icon
+    curseCtx.font = '14px sans-serif';
+    curseCtx.textAlign = 'left';
+    curseCtx.fillText(a.status, startX, y + 14);
+
+    // Label
+    curseCtx.fillStyle = a.color;
+    curseCtx.font = 'bold 12px sans-serif';
+    curseCtx.fillText(a.label, startX + 24, y + 14);
+
+    // Bar (shows how "blocked" each approach is)
+    const blockLevel = a.status === '❌' ? 1.0 : a.status === '🟡' ? 0.7 : 0.3;
+    const bw = blockLevel * barMax;
+    curseCtx.fillStyle = a.color + '44';
+    curseCtx.fillRect(barStart, y + 2, bw, 20);
+    curseCtx.strokeStyle = a.color;
+    curseCtx.lineWidth = 1;
+    curseCtx.strokeRect(barStart, y + 2, bw, 20);
+
+    // Reason text inside bar
+    curseCtx.fillStyle = '#fff';
+    curseCtx.font = '11px sans-serif';
+    curseCtx.textAlign = 'left';
+    curseCtx.fillText(a.reason, barStart + 6, y + 16);
+
+    // X mark for blocked
+    if (a.status === '❌') {
+      curseCtx.strokeStyle = '#f44';
+      curseCtx.lineWidth = 2;
+      const rx = barStart + bw + 10;
+      curseCtx.beginPath(); curseCtx.moveTo(rx, y+4); curseCtx.lineTo(rx+12, y+20); curseCtx.stroke();
+      curseCtx.beginPath(); curseCtx.moveTo(rx+12, y+4); curseCtx.lineTo(rx, y+20); curseCtx.stroke();
+    }
+  }
+
+  // Arrow to E
+  const ey = startY + 20 + 4 * rowH + 10;
+  curseCtx.fillStyle = '#48f';
+  curseCtx.font = 'bold 11px sans-serif';
+  curseCtx.textAlign = 'center';
+  curseCtx.fillText('↑ 唯一の生存経路 — 実験的検証は存在しない', W/2, ey + 16);
+}
+
+drawCurse();
 </script>
 </body>
 </html>
