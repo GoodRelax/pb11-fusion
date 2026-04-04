@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>電子問題 — 7つの対策</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0a1a; color:#e0e0e0; font-family:'Segoe UI','Hiragino Sans',sans-serif; padding-top:28px; }
+nav.topnav { position:fixed;top:0;left:0;right:0;z-index:9999;background:#0a0a1a;border-bottom:1px solid #333;padding:4px 12px;font-size:0.75em; }
+nav.topnav a { color:#88ccff;text-decoration:none; }
+nav.topnav .sep { color:#555;margin:0 8px; }
+nav.topnav .repo { color:#666; }
+h1 { text-align:center; padding:12px; font-size:1.3em; color:#88ccff; }
+.subtitle { text-align:center; color:#888; font-size:0.8em; margin-bottom:10px; }
+.container { max-width:960px; margin:0 auto; padding:0 10px 30px; }
+
+/* Tree view */
+.tree { background:#111128; border:1px solid #333; border-radius:8px; padding:16px; margin-bottom:14px; }
+.tree h2 { color:#ffcc44; font-size:1em; margin-bottom:10px; text-align:center; }
+.tree-canvas { display:block; margin:0 auto; }
+
+/* Method cards */
+.methods { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:10px; margin-bottom:14px; }
+.card {
+  background:#111128; border:1px solid #333; border-radius:8px; padding:12px;
+  cursor:pointer; transition:border-color 0.2s, background 0.2s;
+}
+.card:hover { border-color:#88ccff; background:#151535; }
+.card.active { border-color:#ffaa00; background:#1a1a10; }
+.card .num { color:#ffaa00; font-weight:bold; font-size:0.9em; }
+.card .name { color:#88ccff; font-weight:bold; font-size:0.95em; margin:4px 0; }
+.card .principle { color:#aaa; font-size:0.78em; line-height:1.5; }
+.card .verdict { margin-top:6px; font-size:0.78em; padding:3px 8px; border-radius:4px; display:inline-block; }
+.verdict-bad { background:#3a1a1a; color:#ff6666; }
+.verdict-meh { background:#3a3a1a; color:#ffcc44; }
+.verdict-theory { background:#1a2a3a; color:#88ccff; }
+
+/* Detail panel */
+.detail { background:#111128; border:1px solid #444; border-radius:8px; padding:16px; margin-bottom:14px; min-height:200px; }
+.detail h3 { color:#ffaa00; margin-bottom:8px; }
+.detail canvas { display:block; margin:10px auto; border:1px solid #333; border-radius:6px; background:#050510; }
+.detail .desc { color:#ccc; font-size:0.82em; line-height:1.7; margin-top:10px; }
+.detail .problem { color:#ff6666; font-size:0.82em; margin-top:8px; padding:8px; background:#1a0a0a; border-radius:4px; border-left:3px solid #ff4444; }
+
+/* Combined strategy */
+.combo { background:#1a1a10; border:1px solid #554400; border-radius:8px; padding:14px; }
+.combo h3 { color:#ffcc44; margin-bottom:8px; font-size:0.95em; }
+.combo-bar { display:flex; align-items:center; margin:4px 0; gap:8px; font-size:0.8em; }
+.combo-fill { height:20px; border-radius:4px; transition:width 0.5s; display:flex; align-items:center; justify-content:center; font-size:0.7em; color:#fff; font-weight:bold; }
+.combo-label { color:#aaa; width:160px; flex-shrink:0; text-align:right; }
+.combo-result { text-align:center; margin-top:10px; font-size:1.1em; color:#ffcc44; font-weight:bold; }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+<a href="https://github.com/GoodRelax/pb11-fusion#コンテンツ一覧">📋 一覧に戻る</a>
+<span class="sep">|</span>
+<a href="https://github.com/GoodRelax/pb11-fusion" class="repo">pb11-fusion</a>
+</nav>
+
+<h1>電子問題 — なぜ電子が核融合を邪魔するのか</h1>
+<div class="subtitle">7つの対策と、その全てについている「でも」</div>
+
+<div class="container">
+
+<!-- Problem tree -->
+<div class="tree">
+  <h2>電子問題の構造</h2>
+  <canvas class="tree-canvas" id="treeCanvas" width="920" height="180"></canvas>
+</div>
+
+<!-- Method cards -->
+<div class="methods" id="methodCards"></div>
+
+<!-- Detail panel -->
+<div class="detail" id="detailPanel">
+  <h3 id="detailTitle">方法を選んでください</h3>
+  <canvas id="detailCanvas" width="880" height="220"></canvas>
+  <div class="desc" id="detailDesc">上のカードをクリックすると、各方法のアニメーションと詳細が表示されます。</div>
+  <div class="problem" id="detailProblem" style="display:none"></div>
+</div>
+
+<!-- 4-cycle combined strategy -->
+<div class="combo">
+  <h3>4サイクル方式の合わせ技戦略</h3>
+  <div class="combo-bar">
+    <span class="combo-label">ベースライン</span>
+    <div class="combo-fill" style="width:60px;background:#ff4466;">0.22</div>
+    <span style="color:#888;font-size:0.75em;">P_fusion / P_brem（マクスウェル分布、Ti/Te=10）</span>
+  </div>
+  <div class="combo-bar">
+    <span class="combo-label">+ 非マクスウェル分布</span>
+    <div class="combo-fill" style="width:160px;background:#ff8844;">×3</div>
+    <span style="color:#888;font-size:0.75em;">ガモフピーク集中で P_fusion 改善</span>
+  </div>
+  <div class="combo-bar">
+    <span class="combo-label">+ 超短パルス Te抑制</span>
+    <div class="combo-fill" style="width:260px;background:#ffaa44;">×5</div>
+    <span style="color:#888;font-size:0.75em;">Te を 1/5 に抑制</span>
+  </div>
+  <div class="combo-bar">
+    <span class="combo-label">+ 電子排出（10-20%）</span>
+    <div class="combo-fill" style="width:310px;background:#44cc88;">×1.5</div>
+    <span style="color:#888;font-size:0.75em;">n_e 削減で P_brem を 0.64倍</span>
+  </div>
+  <div class="combo-result">
+    合計: P_fusion / P_brem ≈ 2.3 — NETをギリギリ超える程度。全て未実証。
+  </div>
+</div>
+
+</div>
+
+<script>
+// === METHOD DATA ===
+const methods = [
+  {
+    num: '1', name: '磁場で排出',
+    principle: 'ラーモア半径の差を利用。電子は軽い→小さい円→磁場で制御しやすい。ミラー端から排出。',
+    verdict: 'meh', verdictText: '10-20%が限界',
+    problem: 'アンビポーラ電位: 電子が逃げると正電荷が残り、静電場が電子を引き戻す。大量除去は原理的に困難。さらにZピンチ電流を運ぶ電子を抜くと圧縮が弱まる矛盾。',
+    anim: 'magnetic',
+  },
+  {
+    num: '2', name: '超短パルス（時間で逃げる）',
+    principle: '熱平衡化 τ_eq ≈ 1μs に対し、燃焼を 1-10 ns で完了。電子が温まる前に核融合を終える。',
+    verdict: 'meh', verdictText: 'ns精度が必要',
+    problem: 'オーム加熱（J²ηΔt）を完全にゼロにはできない。Zピンチ電流自体が電子を加熱してしまう。MHD不安定性の成長時間（~100ns）との競争。',
+    anim: 'pulse',
+  },
+  {
+    num: '3', name: 'ミラー端損失',
+    principle: '磁気ミラーの端から、軽い電子が重いイオンより先に逃げ出す。自然な電子排出。',
+    verdict: 'meh', verdictText: 'アンビポーラ壁',
+    problem: '方法1と同じアンビポーラ電位の壁。電子が先に逃げるほど、残ったプラズマが正に帯電し、電子を引き戻す力が強まる。自然な上限がある。',
+    anim: 'mirror',
+  },
+  {
+    num: '4', name: '静電ポテンシャル井戸',
+    principle: '正電圧の球殻でイオンだけを中心に加速し衝突させる。電子は外側に追いやる。',
+    verdict: 'bad', verdictText: 'Q << 1',
+    problem: 'イオンがグリッドに衝突してエネルギー損失。電子の再結合。理論的にQ > 1は不可能とされる。フューザーは教育用としては優秀だが発電装置にはなれない。',
+    anim: 'fusor',
+  },
+  {
+    num: '5', name: 'ミューオン触媒',
+    principle: '電子の代わりにミューオン（質量207倍）を入れる。原子が1/207に縮小→室温で核融合。',
+    verdict: 'theory', verdictText: '生成コスト赤字',
+    problem: 'ミューオン寿命 2.2μs。1個で ~150回触媒。150×17.6MeV = 2,640MeV < 生成コスト5,000MeV。エネルギー赤字。p-B11ではクーロン障壁が高くさらに効率低下。',
+    anim: 'muon',
+  },
+  {
+    num: '6', name: '電子縮退（超高密度）',
+    principle: '白色矮星レベルの密度で電子を縮退させる。縮退電子は加速度運動しにくい→制動放射抑制。',
+    verdict: 'theory', verdictText: '密度が不可能',
+    problem: '必要密度 ~10³² /m³（固体の10,000倍以上）。NIF（世界最大レーザー）でも ~10³¹ が限界。地球上で実現する方法がない。',
+    anim: 'degenerate',
+  },
+  {
+    num: '7', name: '格子遮蔽効果',
+    principle: '金属格子中の電子がクーロン障壁を遮蔽し、実効障壁を下げる。「常温核融合」の一部。',
+    verdict: 'bad', verdictText: '再現性なし',
+    problem: '遮蔽効果は ~100eV程度（必要なのは ~600keV）。桁が3つ足りない。再現性のある実験結果なし。主流物理学では核融合に寄与するレベルではないとされる。',
+    anim: 'lattice',
+  },
+];
+
+// === RENDER CARDS ===
+const cardsDiv = document.getElementById('methodCards');
+methods.forEach((m, i) => {
+  const vClass = m.verdict === 'bad' ? 'verdict-bad' : m.verdict === 'meh' ? 'verdict-meh' : 'verdict-theory';
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <span class="num">#${m.num}</span>
+    <div class="name">${m.name}</div>
+    <div class="principle">${m.principle}</div>
+    <div class="verdict ${vClass}">${m.verdictText}</div>
+  `;
+  card.onclick = () => selectMethod(i);
+  cardsDiv.appendChild(card);
+});
+
+let selectedMethod = -1;
+let animFrame = 0;
+
+function selectMethod(idx) {
+  selectedMethod = idx;
+  document.querySelectorAll('.card').forEach((c,i) => c.classList.toggle('active', i===idx));
+  const m = methods[idx];
+  document.getElementById('detailTitle').textContent = `#${m.num} ${m.name}`;
+  document.getElementById('detailDesc').innerHTML = m.principle;
+  document.getElementById('detailProblem').style.display = 'block';
+  document.getElementById('detailProblem').innerHTML = `<b>問題:</b> ${m.problem}`;
+  animFrame = 0;
+}
+
+// === TREE CANVAS ===
+const treeC = document.getElementById('treeCanvas');
+const treeCtx = treeC.getContext('2d');
+
+function drawTree() {
+  const W = treeC.width, H = treeC.height;
+  treeCtx.clearRect(0,0,W,H);
+
+  // Root
+  const rx = W/2, ry = 30;
+  drawBox(treeCtx, rx, ry, '電子が邪魔', '#ff4466', 110);
+
+  // Branches
+  const branches = [
+    { x: 100, label: '物理的に除去', color: '#ff8844', children: ['磁場', 'ミラー', '静電場'] },
+    { x: 300, label: '時間で逃げる', color: '#ffaa44', children: ['超短パルス'] },
+    { x: 480, label: '代替粒子', color: '#88ccff', children: ['ミューオン'] },
+    { x: 630, label: '動けなくする', color: '#aa88ff', children: ['縮退'] },
+    { x: 810, label: '冷やす ★', color: '#44ff88', children: ['Ti>>Te'] },
+  ];
+
+  branches.forEach(b => {
+    treeCtx.strokeStyle = '#444';
+    treeCtx.lineWidth = 1;
+    treeCtx.beginPath();
+    treeCtx.moveTo(rx, ry+15);
+    treeCtx.lineTo(b.x, 75);
+    treeCtx.stroke();
+
+    drawBox(treeCtx, b.x, 85, b.label, b.color, 90);
+
+    b.children.forEach((c, ci) => {
+      const cx = b.x + (ci - (b.children.length-1)/2) * 70;
+      treeCtx.strokeStyle = '#333';
+      treeCtx.beginPath();
+      treeCtx.moveTo(b.x, 100);
+      treeCtx.lineTo(cx, 135);
+      treeCtx.stroke();
+      drawBox(treeCtx, cx, 148, c, '#555', 60, 10);
+    });
+  });
+}
+
+function drawBox(ctx, x, y, text, color, w, fontSize) {
+  const fs = fontSize || 11;
+  const h = fs + 12;
+  ctx.fillStyle = color + '33';
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(x-w/2, y-h/2, w, h, 4);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = color;
+  ctx.font = `${fs}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x, y);
+}
+
+drawTree();
+
+// === DETAIL ANIMATION ===
+const dCanvas = document.getElementById('detailCanvas');
+const dCtx = dCanvas.getContext('2d');
+const DW = dCanvas.width, DH = dCanvas.height;
+
+// Particles for animations
+let particles = [];
+
+function resetParticles(n, opts) {
+  particles = [];
+  for (let i = 0; i < n; i++) {
+    particles.push({
+      x: opts.x ? opts.x(i,n) : DW/2 + (Math.random()-0.5)*200,
+      y: opts.y ? opts.y(i,n) : DH/2 + (Math.random()-0.5)*100,
+      vx: opts.vx ? opts.vx(i,n) : (Math.random()-0.5)*2,
+      vy: opts.vy ? opts.vy(i,n) : (Math.random()-0.5)*2,
+      type: opts.type ? opts.type(i,n) : (i < n/2 ? 'ion' : 'electron'),
+      r: opts.r || 3,
+      life: 999,
+    });
+  }
+}
+
+function animMagnetic() {
+  dCtx.fillStyle = '#050510';
+  dCtx.fillRect(0,0,DW,DH);
+
+  // Magnetic field lines (horizontal)
+  const nLines = 6;
+  for (let i = 0; i < nLines; i++) {
+    const y = 30 + (DH-60) * i/(nLines-1);
+    dCtx.strokeStyle = '#334466';
+    dCtx.lineWidth = 1;
+    dCtx.setLineDash([4,4]);
+    dCtx.beginPath(); dCtx.moveTo(40,y); dCtx.lineTo(DW-40,y); dCtx.stroke();
+    dCtx.setLineDash([]);
+  }
+  dCtx.fillStyle = '#33446688'; dCtx.font='10px sans-serif'; dCtx.textAlign='left';
+  dCtx.fillText('B →', DW-70, 20);
+
+  // Mirror endpoints
+  dCtx.fillStyle = '#88ccff22';
+  dCtx.fillRect(0,0,60,DH);
+  dCtx.fillRect(DW-60,0,60,DH);
+  dCtx.fillStyle = '#88ccff44'; dCtx.font='10px sans-serif'; dCtx.textAlign='center';
+  dCtx.fillText('ミラー端', 30, DH-10);
+  dCtx.fillText('ミラー端', DW-30, DH-10);
+
+  // Ambipolar wall
+  const wallAlpha = Math.min(animFrame * 0.005, 0.5);
+  if (wallAlpha > 0.05) {
+    dCtx.strokeStyle = `rgba(255,100,100,${wallAlpha})`;
+    dCtx.lineWidth = 2;
+    dCtx.setLineDash([6,3]);
+    dCtx.beginPath(); dCtx.moveTo(70,0); dCtx.lineTo(70,DH); dCtx.stroke();
+    dCtx.beginPath(); dCtx.moveTo(DW-70,0); dCtx.lineTo(DW-70,DH); dCtx.stroke();
+    dCtx.setLineDash([]);
+    dCtx.fillStyle = `rgba(255,100,100,${wallAlpha})`;
+    dCtx.font = '9px sans-serif';
+    dCtx.fillText('⚡アンビポーラ電位', DW/2, 14);
+  }
+
+  if (animFrame === 0) {
+    resetParticles(60, {
+      x: (i,n) => 100 + Math.random()*(DW-200),
+      y: (i,n) => 30 + Math.random()*(DH-60),
+      vx: (i,n) => (Math.random()-0.5)*2,
+      vy: (i,n) => (Math.random()-0.5)*1,
+      type: (i,n) => i < n*0.5 ? 'ion' : 'electron',
+    });
+  }
+
+  particles.forEach(p => {
+    // Electrons move faster, try to escape
+    const speed = p.type === 'electron' ? 1.8 : 0.6;
+    p.x += p.vx * speed;
+    p.y += p.vy * speed;
+
+    // Larmor motion (electrons spiral tighter)
+    const lr = p.type === 'electron' ? 8 : 25;
+    p.vx += Math.sin(animFrame * 0.1 + p.y * 0.01) * 0.1;
+    p.vy += Math.cos(animFrame * 0.1 + p.x * 0.01) * 0.05;
+
+    // Bounce at boundaries (ambipolar pulls electrons back)
+    if (p.type === 'electron') {
+      if (p.x < 70) { p.vx = Math.abs(p.vx) * 0.8 + 0.5; } // pulled back
+      if (p.x > DW-70) { p.vx = -Math.abs(p.vx) * 0.8 - 0.5; }
+    }
+    if (p.y < 10) p.vy = Math.abs(p.vy);
+    if (p.y > DH-10) p.vy = -Math.abs(p.vy);
+    if (p.x < 10) p.vx = Math.abs(p.vx);
+    if (p.x > DW-10) p.vx = -Math.abs(p.vx);
+
+    // Draw
+    const color = p.type === 'electron' ? '#ff4466' : '#44aaff';
+    const sz = p.type === 'electron' ? 2.5 : 4;
+    dCtx.fillStyle = color;
+    dCtx.beginPath(); dCtx.arc(p.x, p.y, sz, 0, Math.PI*2); dCtx.fill();
+  });
+
+  dCtx.fillStyle='#44aaff'; dCtx.font='10px sans-serif'; dCtx.textAlign='left';
+  dCtx.fillText('● イオン（重い→遅い）', 80, DH-10);
+  dCtx.fillStyle='#ff4466';
+  dCtx.fillText('● 電子（軽い→速いが引き戻される）', 280, DH-10);
+}
+
+function animPulse() {
+  dCtx.fillStyle = '#050510';
+  dCtx.fillRect(0,0,DW,DH);
+
+  // Timeline
+  const phaseT = animFrame % 300;
+  const phase = phaseT < 100 ? 0 : phaseT < 130 ? 1 : phaseT < 140 ? 2 : 3;
+  const labels = ['Phase 1: eビーム加熱', 'Phase 2: Zピンチ圧縮 (~ns)', 'Phase 3: 核融合! 🔥', 'Phase 4: 膨張・回収'];
+  const colors = ['#44aaff', '#ffaa44', '#ff4466', '#44ff88'];
+
+  // Progress bar
+  dCtx.fillStyle = '#1a1a3a';
+  dCtx.fillRect(40, 10, DW-80, 20);
+  const prog = phaseT / 300;
+  dCtx.fillStyle = colors[phase];
+  dCtx.fillRect(40, 10, (DW-80)*prog, 20);
+  dCtx.fillStyle = '#fff'; dCtx.font='11px sans-serif'; dCtx.textAlign='center';
+  dCtx.fillText(labels[phase], DW/2, 25);
+
+  // Ti and Te bars
+  const barY = 50;
+  let ti = 0, te = 0;
+  if (phase === 0) { ti = phaseT/100 * 50; te = phaseT/100 * 5; }
+  else if (phase === 1) { ti = 50 + (phaseT-100)/30 * 250; te = 5 + (phaseT-100)/30 * 3; }
+  else if (phase === 2) { ti = 300; te = 8; }
+  else { ti = 300 - (phaseT-140)/160 * 280; te = 8 - (phaseT-140)/160 * 6; }
+
+  dCtx.fillStyle = '#1a1a3a';
+  dCtx.fillRect(120, barY, 400, 16);
+  dCtx.fillRect(120, barY+30, 400, 16);
+  dCtx.fillStyle = '#ff6644';
+  dCtx.fillRect(120, barY, Math.min(ti/300*400, 400), 16);
+  dCtx.fillStyle = '#4488ff';
+  dCtx.fillRect(120, barY+30, Math.min(te/10*400, 400), 16);
+  dCtx.fillStyle = '#fff'; dCtx.font='10px sans-serif'; dCtx.textAlign='right';
+  dCtx.fillText('Ti', 110, barY+12);
+  dCtx.fillText('Te', 110, barY+42);
+  dCtx.textAlign='left';
+  dCtx.fillText(`${ti.toFixed(0)} (相対値)`, 530, barY+12);
+  dCtx.fillText(`${te.toFixed(1)} (相対値)`, 530, barY+42);
+
+  // Ti/Te ratio
+  const ratio = te > 0.1 ? (ti/te).toFixed(0) : '∞';
+  dCtx.fillStyle = '#ffcc44'; dCtx.font='bold 16px sans-serif'; dCtx.textAlign='center';
+  dCtx.fillText(`Ti/Te ≈ ${ratio}`, DW/2, barY+80);
+
+  // Key insight
+  dCtx.fillStyle = '#888'; dCtx.font='11px sans-serif';
+  dCtx.fillText('超短パルス（~ns）で燃焼完了 → 電子が温まる前に終わる（τ_eq ≈ 1μs）', DW/2, barY + 105);
+
+  // Plasma particles
+  const cx = DW/2, cy = 165;
+  const compression = phase === 1 ? 1 - (phaseT-100)/30*0.7 :
+                      phase === 2 ? 0.3 : phase === 3 ? 0.3 + (phaseT-140)/160*0.7 : 1;
+  const radius = 80 * compression;
+
+  if (animFrame === 0) {
+    resetParticles(50, {
+      x: (i,n) => cx + (Math.random()-0.5)*150,
+      y: (i,n) => cy + (Math.random()-0.5)*80,
+      type: (i,n) => i < n*0.5 ? 'ion' : 'electron',
+    });
+  }
+
+  particles.forEach(p => {
+    const dx = p.x - cx, dy = p.y - cy;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist > radius) {
+      p.x = cx + dx/dist * radius;
+      p.y = cy + dy/dist * radius;
+    }
+    p.x += (Math.random()-0.5) * 2;
+    p.y += (Math.random()-0.5) * 1.5;
+
+    const color = p.type === 'electron' ? '#4488ff' : '#ff6644';
+    const sz = p.type === 'electron' ? 2 : 3.5;
+    // Glow at fusion
+    if (phase === 2 && p.type === 'ion') {
+      dCtx.fillStyle = '#ffff4433';
+      dCtx.beginPath(); dCtx.arc(p.x,p.y,8,0,Math.PI*2); dCtx.fill();
+    }
+    dCtx.fillStyle = color;
+    dCtx.beginPath(); dCtx.arc(p.x,p.y,sz,0,Math.PI*2); dCtx.fill();
+  });
+}
+
+function animMirror() {
+  // Similar to magnetic but emphasize mirror geometry
+  animMagnetic(); // reuse with same visualization
+}
+
+function animFusor() {
+  dCtx.fillStyle = '#050510';
+  dCtx.fillRect(0,0,DW,DH);
+
+  const cx = DW/2, cy = DH/2;
+
+  // Grid (sphere cross-section)
+  dCtx.strokeStyle = '#88888844';
+  dCtx.lineWidth = 2;
+  dCtx.beginPath(); dCtx.arc(cx, cy, 90, 0, Math.PI*2); dCtx.stroke();
+
+  // Voltage label
+  dCtx.fillStyle = '#ff444488'; dCtx.font='10px sans-serif'; dCtx.textAlign='center';
+  dCtx.fillText('− 高電圧グリッド −', cx, cy-100);
+
+  // Ions accelerating inward
+  for (let i = 0; i < 12; i++) {
+    const angle = (i/12)*Math.PI*2 + animFrame*0.01;
+    const phase = (animFrame*2 + i*30) % 120;
+    const r = 90 - phase * 0.75;
+    if (r < 5) continue;
+    const x = cx + Math.cos(angle) * r;
+    const y = cy + Math.sin(angle) * r;
+    dCtx.fillStyle = `rgba(68,170,255,${r/90})`;
+    dCtx.beginPath(); dCtx.arc(x,y,3,0,Math.PI*2); dCtx.fill();
+  }
+
+  // Electrons pushed outward
+  for (let i = 0; i < 8; i++) {
+    const angle = (i/8)*Math.PI*2 - animFrame*0.015;
+    const r = 95 + ((animFrame+i*20)%60)*0.5;
+    const x = cx + Math.cos(angle) * r;
+    const y = cy + Math.sin(angle) * r;
+    dCtx.fillStyle = `rgba(255,68,100,${1 - (r-95)/30})`;
+    dCtx.beginPath(); dCtx.arc(x,y,2,0,Math.PI*2); dCtx.fill();
+  }
+
+  // Grid collision sparks
+  if (animFrame % 15 < 3) {
+    const sa = Math.random()*Math.PI*2;
+    const sx = cx + Math.cos(sa)*90, sy = cy + Math.sin(sa)*90;
+    dCtx.fillStyle = '#ffaa0066';
+    dCtx.beginPath(); dCtx.arc(sx,sy,5,0,Math.PI*2); dCtx.fill();
+  }
+
+  dCtx.fillStyle='#aaa'; dCtx.font='10px sans-serif'; dCtx.textAlign='center';
+  dCtx.fillText('イオン → 中心に加速（でもグリッドに衝突してロス）', cx, DH-15);
+}
+
+function animMuon() {
+  dCtx.fillStyle = '#050510';
+  dCtx.fillRect(0,0,DW,DH);
+
+  const cx1 = 220, cx2 = 660, cy = DH/2;
+
+  // Normal atom
+  dCtx.strokeStyle = '#4488ff44';
+  dCtx.lineWidth = 1;
+  dCtx.beginPath(); dCtx.arc(cx1,cy,70,0,Math.PI*2); dCtx.stroke();
+  dCtx.fillStyle = '#ff6644'; dCtx.beginPath(); dCtx.arc(cx1,cy,8,0,Math.PI*2); dCtx.fill();
+  const ea = animFrame * 0.05;
+  dCtx.fillStyle = '#4488ff';
+  dCtx.beginPath(); dCtx.arc(cx1+Math.cos(ea)*70, cy+Math.sin(ea)*40, 3, 0, Math.PI*2); dCtx.fill();
+  dCtx.fillStyle = '#888'; dCtx.font='11px sans-serif'; dCtx.textAlign='center';
+  dCtx.fillText('通常の原子', cx1, cy+95);
+  dCtx.fillText('e⁻ 軌道半径 0.5Å', cx1, cy+110);
+
+  // Arrow
+  dCtx.fillStyle = '#ffcc44'; dCtx.font='bold 20px sans-serif';
+  dCtx.fillText('→', 440, cy);
+  dCtx.font='10px sans-serif'; dCtx.fillStyle='#aaa';
+  dCtx.fillText('e⁻ を μ⁻ に置換', 440, cy+20);
+
+  // Muonic atom (1/207 scale)
+  dCtx.strokeStyle = '#aa88ff44';
+  dCtx.beginPath(); dCtx.arc(cx2,cy,8,0,Math.PI*2); dCtx.stroke();
+  dCtx.fillStyle = '#ff6644'; dCtx.beginPath(); dCtx.arc(cx2,cy,8,0,Math.PI*2); dCtx.fill();
+  const ma = animFrame * 0.08;
+  dCtx.fillStyle = '#aa88ff';
+  dCtx.beginPath(); dCtx.arc(cx2+Math.cos(ma)*8, cy+Math.sin(ma)*5, 3, 0, Math.PI*2); dCtx.fill();
+  dCtx.fillStyle = '#888'; dCtx.font='11px sans-serif';
+  dCtx.fillText('ミューオン原子', cx2, cy+95);
+  dCtx.fillText('μ⁻ 軌道半径 0.0025Å（1/207）', cx2, cy+110);
+
+  // Decay timer
+  const decay = (animFrame % 200) / 200;
+  dCtx.fillStyle = '#1a1a3a';
+  dCtx.fillRect(cx2-60, cy-80, 120, 14);
+  dCtx.fillStyle = decay < 0.8 ? '#aa88ff' : '#ff4466';
+  dCtx.fillRect(cx2-60, cy-80, 120*(1-decay), 14);
+  dCtx.fillStyle = '#fff'; dCtx.font='9px sans-serif';
+  dCtx.fillText(`寿命: ${(2.2*(1-decay)).toFixed(1)} μs`, cx2, cy-70);
+}
+
+function animDegenerate() {
+  dCtx.fillStyle = '#050510';
+  dCtx.fillRect(0,0,DW,DH);
+
+  const cx1 = 220, cx2 = 660, cy = DH/2 - 10;
+
+  // Normal plasma
+  dCtx.fillStyle = '#88ccff22';
+  dCtx.fillRect(cx1-100, cy-70, 200, 140);
+  dCtx.strokeStyle = '#88ccff44'; dCtx.strokeRect(cx1-100, cy-70, 200, 140);
+
+  for (let i = 0; i < 30; i++) {
+    const x = cx1-90 + Math.random()*180;
+    const y = cy-60 + Math.random()*120;
+    const sp = 2 + Math.random()*2;
+    const ex = x + Math.sin(animFrame*0.1 + i)*sp;
+    const ey = y + Math.cos(animFrame*0.1 + i)*sp;
+    dCtx.fillStyle = '#ff446688';
+    dCtx.beginPath(); dCtx.arc(ex,ey,2,0,Math.PI*2); dCtx.fill();
+    // Brem radiation
+    if (Math.random() < 0.02) {
+      dCtx.strokeStyle = '#ffff0033';
+      dCtx.beginPath(); dCtx.moveTo(ex,ey); dCtx.lineTo(ex+(Math.random()-0.5)*30, ey+(Math.random()-0.5)*30); dCtx.stroke();
+    }
+  }
+  dCtx.fillStyle = '#888'; dCtx.font='10px sans-serif'; dCtx.textAlign='center';
+  dCtx.fillText('通常プラズマ', cx1, cy+90);
+  dCtx.fillText('電子が自由に動く → 制動放射', cx1, cy+105);
+
+  // Arrow
+  dCtx.fillStyle = '#ffcc44'; dCtx.font='bold 16px sans-serif';
+  dCtx.fillText('密度×10⁴ →', 440, cy);
+
+  // Degenerate
+  dCtx.fillStyle = '#aa88ff11';
+  dCtx.fillRect(cx2-60, cy-70, 120, 140);
+  dCtx.strokeStyle = '#aa88ff44'; dCtx.strokeRect(cx2-60, cy-70, 120, 140);
+
+  // Packed electrons (barely moving)
+  for (let i = 0; i < 60; i++) {
+    const x = cx2-50 + (i%10)*10;
+    const y = cy-55 + Math.floor(i/10)*18;
+    const jitter = Math.sin(animFrame*0.02+i)*0.3;
+    dCtx.fillStyle = '#aa88ff66';
+    dCtx.beginPath(); dCtx.arc(x+jitter,y+jitter,3,0,Math.PI*2); dCtx.fill();
+  }
+  dCtx.fillStyle = '#888'; dCtx.font='10px sans-serif';
+  dCtx.fillText('縮退電子', cx2, cy+90);
+  dCtx.fillText('動けない → 制動放射しない', cx2, cy+105);
+  dCtx.fillStyle = '#ff666688'; dCtx.font='9px sans-serif';
+  dCtx.fillText('(必要密度: 白色矮星レベル)', cx2, cy+120);
+}
+
+function animLattice() {
+  dCtx.fillStyle = '#050510';
+  dCtx.fillRect(0,0,DW,DH);
+
+  const cx = DW/2, cy = DH/2;
+
+  // Crystal lattice
+  const spacing = 40;
+  const cols = 12, rows = 4;
+  const ox = cx - (cols-1)*spacing/2, oy = cy - (rows-1)*spacing/2;
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = ox + c*spacing;
+      const y = oy + r*spacing;
+      // Nucleus
+      dCtx.fillStyle = '#88664488';
+      dCtx.beginPath(); dCtx.arc(x,y,6,0,Math.PI*2); dCtx.fill();
+      // Electron cloud (screening)
+      const cloudR = 15 + Math.sin(animFrame*0.05 + r*c)*2;
+      dCtx.fillStyle = '#4488ff08';
+      dCtx.beginPath(); dCtx.arc(x,y,cloudR,0,Math.PI*2); dCtx.fill();
+    }
+  }
+
+  // Proton trying to get through
+  const px = 40 + (animFrame*1.5) % (DW-80);
+  const py = cy + Math.sin(animFrame*0.1)*10;
+  dCtx.fillStyle = '#44ff88';
+  dCtx.beginPath(); dCtx.arc(px,py,4,0,Math.PI*2); dCtx.fill();
+
+  // Screening effect label
+  dCtx.fillStyle = '#888'; dCtx.font='10px sans-serif'; dCtx.textAlign='center';
+  dCtx.fillText('格子中の電子雲がクーロン障壁を ~100eV 遮蔽（必要: ~600,000eV）', cx, DH-15);
+  dCtx.fillStyle = '#ff666688';
+  dCtx.fillText('桁が3つ足りない', cx, DH-35);
+}
+
+const animFuncs = {
+  magnetic: animMagnetic,
+  pulse: animPulse,
+  mirror: animMirror,
+  fusor: animFusor,
+  muon: animMuon,
+  degenerate: animDegenerate,
+  lattice: animLattice,
+};
+
+function animate() {
+  animFrame++;
+  if (selectedMethod >= 0) {
+    const fn = animFuncs[methods[selectedMethod].anim];
+    if (fn) fn();
+  } else {
+    // Default: show electron blocking
+    dCtx.fillStyle = '#050510';
+    dCtx.fillRect(0,0,DW,DH);
+    dCtx.fillStyle = '#888'; dCtx.font='14px sans-serif'; dCtx.textAlign='center';
+    dCtx.fillText('↑ カードをクリックして各方法のアニメーションを見る', DW/2, DH/2);
+  }
+  requestAnimationFrame(animate);
+}
+
+animate();
+
+// Auto-select first method
+selectMethod(0);
+</script>
+</body>
+</html>
