@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>パルス系 P_ie 計算 — 密度非依存性の証明</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a1a;color:#e0e0e0;font-family:'Segoe UI',sans-serif;padding-top:28px}
+nav{position:fixed;top:0;left:0;right:0;height:28px;background:rgba(10,10,26,.95);border-bottom:1px solid #333;display:flex;align-items:center;padding:0 12px;z-index:999;font-size:13px}
+nav a{color:#88f;text-decoration:none}
+h1{text-align:center;padding:18px 10px 4px;font-size:1.25em;color:#ff9}
+.sub{text-align:center;color:#f66;font-size:.9em;margin-bottom:14px;font-weight:bold}
+.container{max-width:920px;margin:0 auto;padding:0 10px 40px}
+h2{font-size:1em;color:#8cf;margin:18px 0 8px;border-bottom:1px solid #333;padding-bottom:4px}
+canvas{display:block;margin:0 auto;background:#0d0d22;border:1px solid #333;border-radius:6px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:12px 0;align-items:center}
+.controls label{font-size:.85em;color:#aaa}
+.controls select,.controls input{background:#1a1a3a;color:#e0e0e0;border:1px solid #555;border-radius:4px;padding:4px 8px;font-size:.85em}
+.result-box{margin:12px 0;padding:12px;background:#111130;border:1px solid #333;border-radius:6px;font-family:monospace;font-size:.85em;line-height:1.7}
+.result-box .bad{color:#f44;font-weight:bold}
+.result-box .warn{color:#fa0}
+.result-box .ok{color:#4f4}
+.explain{margin:12px 0;padding:10px;background:#0f0f28;border-left:3px solid #88f;border-radius:0 6px 6px 0;font-size:.83em;line-height:1.6}
+.explain strong{color:#ff9}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:700px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<nav><a href="https://github.com/GoodRelax/pb11-fusion#コンテンツ一覧">📋 一覧に戻る</a></nav>
+<h1>パルス系 P_ie 計算</h1>
+<p class="sub">結論: 「一瞬のスキ」は存在しない — τ_eq/τ_burn = 0.0038（密度非依存）</p>
+
+<div class="container">
+
+<h2>密度を変えて τ_eq と τ_burn を比較</h2>
+<div class="controls">
+  <label>電子密度 n_e:</label>
+  <select id="selDensity" onchange="update()">
+    <option value="1e24">10²⁴ m⁻³（低密度）</option>
+    <option value="1e26" selected>10²⁶ m⁻³（MagLIF級）</option>
+    <option value="1e28">10²⁸ m⁻³（中間）</option>
+    <option value="1e30">10³⁰ m⁻³（超高密度圧縮）</option>
+    <option value="1e32">10³² m⁻³（極限）</option>
+  </select>
+  <label>Ti:</label>
+  <select id="selTi" onchange="update()">
+    <option value="150">150 keV</option>
+    <option value="300" selected>300 keV</option>
+    <option value="500">500 keV</option>
+  </select>
+  <label>Te:</label>
+  <select id="selTe" onchange="update()">
+    <option value="3">3 keV</option>
+    <option value="30" selected>30 keV</option>
+    <option value="100">100 keV</option>
+    <option value="150">150 keV</option>
+  </select>
+</div>
+
+<div class="grid">
+  <div>
+    <canvas id="timeCanvas" width="440" height="300"></canvas>
+  </div>
+  <div>
+    <canvas id="raceCanvas" width="440" height="300"></canvas>
+  </div>
+</div>
+
+<div class="result-box" id="results"></div>
+
+<h2>パルス時間別: 燃焼率 vs Te上昇</h2>
+<canvas id="pulseCanvas" width="880" height="320"></canvas>
+
+<div class="explain">
+<strong>なぜ密度を変えても比率が変わらないのか？</strong><br>
+τ_eq ∝ 1/n（密度が高い → 衝突頻度が増える → 緩和が速い）<br>
+τ_burn ∝ 1/n（密度が高い → 核融合頻度が増える → 燃焼が速い）<br>
+比率 = (1/n) / (1/n) = 定数。<br>
+<strong>クーロン断面積 >> 核反応断面積</strong> という根本的事実が、密度に関係なく電子を勝たせる。
+</div>
+
+<h2>密度スイープ: τ_eq/τ_burn の不変性</h2>
+<canvas id="sweepCanvas" width="880" height="250"></canvas>
+
+</div>
+
+<script>
+// Physics constants
+const e_c = 1.602e-19, m_e = 9.109e-31, m_p = 1.673e-27;
+const eps0 = 8.854e-12, keV = 1e3*e_c, lnL = 10;
+const m_B = 11*m_p, E_fus = 8.7e6*e_c, sv = 2e-22;
+
+function tau_eq_ei(Te_keV, Ti_keV, n_e, Zi, mi) {
+  const Te=Te_keV*keV, Ti=Ti_keV*keV;
+  const ni = n_e/Zi;
+  const pf = 3/(8*Math.sqrt(2*Math.PI));
+  const cf = (4*Math.PI*eps0)**2 / (ni*Zi*Zi*e_c**4*lnL);
+  return pf * cf * m_e * mi * (Te/m_e + Ti/mi)**1.5;
+}
+
+function compute(n_e, Ti, Te) {
+  const tep = tau_eq_ei(Te,Ti,n_e,1,m_p);
+  const teB = tau_eq_ei(Te,Ti,n_e,5,m_B);
+  const rate = 1/tep+1/teB;
+  const tau_eq = 1/rate;
+  const n0 = n_e/6;
+  const tau_burn = 1/(n0*sv);
+  const Td = (Ti-Te)*keV;
+  const P_ie = 1.5*n_e*Td*rate;
+  const P_fus = n0*n0*sv*E_fus;
+  return {tep,teB,tau_eq,tau_burn,P_ie,P_fus,ratio:tau_eq/tau_burn,pie_pfus:P_ie/P_fus};
+}
+
+function fmtTime(s) {
+  if(s>=1e-3) return (s*1e3).toFixed(2)+' ms';
+  if(s>=1e-6) return (s*1e6).toFixed(2)+' μs';
+  if(s>=1e-9) return (s*1e9).toFixed(2)+' ns';
+  return (s*1e12).toFixed(2)+' ps';
+}
+
+function update() {
+  const n_e = parseFloat(document.getElementById('selDensity').value);
+  const Ti = parseFloat(document.getElementById('selTi').value);
+  const Te = parseFloat(document.getElementById('selTe').value);
+  const r = compute(n_e,Ti,Te);
+
+  // Results box
+  const ratioClass = r.ratio < 0.01 ? 'bad' : r.ratio < 1 ? 'warn' : 'ok';
+  document.getElementById('results').innerHTML = `
+    τ_eq(e-p):  ${fmtTime(r.tep)}
+    τ_eq(e-B):  ${fmtTime(r.teB)}
+    τ_eq(合成): ${fmtTime(r.tau_eq)}
+    τ_burn:     ${fmtTime(r.tau_burn)}
+    <span class="${ratioClass}">τ_eq / τ_burn = ${r.ratio.toFixed(5)}  ← 緩和が燃焼の ${(1/r.ratio).toFixed(0)}倍速い</span>
+    P_ie / P_fus = <span class="bad">${r.pie_pfus.toFixed(1)}</span>
+  `.replace(/\n/g,'<br>');
+
+  drawTimeCompare(r);
+  drawRace(r, Ti, Te, n_e);
+  drawPulseScan(r, Ti, Te, n_e);
+  drawSweep(Ti, Te);
+}
+
+function drawTimeCompare(r) {
+  const c = document.getElementById('timeCanvas');
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  const w=c.width, h=c.height;
+
+  ctx.fillStyle='#888';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
+  ctx.fillText('τ_eq vs τ_burn（対数スケール）',w/2,18);
+
+  const bars = [
+    {label:'τ_eq(e-p)', val:r.tep, color:'#f84'},
+    {label:'τ_eq(e-B)', val:r.teB, color:'#fa4'},
+    {label:'τ_eq(合成)', val:r.tau_eq, color:'#f44'},
+    {label:'τ_burn', val:r.tau_burn, color:'#4f4'},
+  ];
+
+  const maxLog = Math.ceil(Math.log10(r.tau_burn))+1;
+  const minLog = Math.floor(Math.log10(r.tau_eq))-1;
+  const range = maxLog-minLog;
+  const barH = 32, startY = 40, startX = 120, maxW = w-160;
+
+  for(let i=0;i<bars.length;i++){
+    const y = startY+i*(barH+12);
+    const b = bars[i];
+    const logVal = Math.log10(b.val);
+    const bw = ((logVal-minLog)/range)*maxW;
+
+    ctx.fillStyle='#aaa';ctx.font='12px sans-serif';ctx.textAlign='right';
+    ctx.fillText(b.label,startX-8,y+barH/2+4);
+
+    ctx.fillStyle=b.color+'66';ctx.fillRect(startX,y,Math.max(4,bw),barH);
+    ctx.strokeStyle=b.color;ctx.lineWidth=1.5;ctx.strokeRect(startX,y,Math.max(4,bw),barH);
+
+    ctx.fillStyle='#fff';ctx.font='11px monospace';ctx.textAlign='left';
+    ctx.fillText(fmtTime(b.val),startX+Math.max(4,bw)+6,y+barH/2+4);
+  }
+
+  // Ratio annotation
+  const y1 = startY+2*(barH+12)+barH/2;
+  const y2 = startY+3*(barH+12)+barH/2;
+  ctx.strokeStyle='#ff0';ctx.lineWidth=1;ctx.setLineDash([4,3]);
+  ctx.beginPath();ctx.moveTo(startX+maxW+30,y1);ctx.lineTo(startX+maxW+30,y2);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='#ff0';ctx.font='bold 11px sans-serif';ctx.textAlign='left';
+  ctx.fillText(`×${(1/r.ratio).toFixed(0)}`,startX+maxW+34,(y1+y2)/2+4);
+}
+
+function drawRace(r, Ti, Te, n_e) {
+  const c = document.getElementById('raceCanvas');
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  const w=c.width,h=c.height;
+
+  ctx.fillStyle='#888';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
+  ctx.fillText('燃焼 vs 電子加熱の競争',w/2,18);
+
+  // Simulate Te rise and burn fraction over time
+  const n0 = n_e/6;
+  const tMax = r.tau_burn*0.1; // show first 10% of burn time
+  const steps = 200;
+  const dt = tMax/steps;
+
+  const px0=60,py0=35,pw=w-80,ph=h-70;
+
+  // Axes
+  ctx.strokeStyle='#555';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(px0,py0);ctx.lineTo(px0,py0+ph);ctx.lineTo(px0+pw,py0+ph);ctx.stroke();
+
+  // Time axis label
+  ctx.fillStyle='#888';ctx.font='10px sans-serif';ctx.textAlign='center';
+  ctx.fillText('時間 (τ_burn の %)',px0+pw/2,py0+ph+28);
+
+  // Simulate
+  let te = Te;
+  let burnFrac = 0;
+  const tePoints=[], burnPoints=[];
+  for(let i=0;i<=steps;i++){
+    const t = i*dt;
+    tePoints.push({x:px0+(t/tMax)*pw, y:py0+ph-(te/Ti)*ph});
+    burnPoints.push({x:px0+(t/tMax)*pw, y:py0+ph-burnFrac*ph});
+    // Simple Euler step
+    const dTe = (Ti-te)*(dt/r.tau_eq);
+    te = Math.min(Ti, te+dTe);
+    burnFrac = Math.min(1, burnFrac + n0*sv*dt);
+  }
+
+  // Draw burn fraction
+  ctx.strokeStyle='#4f4';ctx.lineWidth=2;ctx.beginPath();
+  burnPoints.forEach((p,i)=>{i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)});
+  ctx.stroke();
+
+  // Draw Te
+  ctx.strokeStyle='#f44';ctx.lineWidth=2;ctx.beginPath();
+  tePoints.forEach((p,i)=>{i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)});
+  ctx.stroke();
+
+  // Legend
+  ctx.fillStyle='#f44';ctx.font='11px sans-serif';ctx.textAlign='left';
+  ctx.fillText('● Te / Ti',px0+10,py0+15);
+  ctx.fillStyle='#4f4';
+  ctx.fillText('● 燃焼率',px0+100,py0+15);
+
+  // Y axis labels
+  ctx.fillStyle='#888';ctx.font='10px sans-serif';ctx.textAlign='right';
+  ctx.fillText('100%',px0-4,py0+6);
+  ctx.fillText('0%',px0-4,py0+ph+4);
+
+  // X axis
+  for(let p=0;p<=100;p+=25){
+    const x=px0+(p/100)*pw;
+    ctx.fillStyle='#555';ctx.fillRect(x,py0+ph,1,4);
+    ctx.fillStyle='#888';ctx.textAlign='center';
+    ctx.fillText(p+'%',x,py0+ph+14);
+  }
+}
+
+function drawPulseScan(r, Ti, Te, n_e) {
+  const c = document.getElementById('pulseCanvas');
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  const w=c.width,h=c.height;
+
+  ctx.fillStyle='#888';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
+  ctx.fillText('パルス時間別: 燃焼率(緑) vs Te上昇率(赤)',w/2,18);
+
+  const pulses = [0.1, 0.5, 1, 5, 10, 50, 100, 500];
+  const n0=n_e/6;
+  const barW = (w-120)/pulses.length - 8;
+  const startX=80, startY=40, maxH=h-80;
+
+  for(let i=0;i<pulses.length;i++){
+    const tns = pulses[i];
+    const tb = tns*1e-9;
+    const burnFrac = Math.min(1, n0*sv*tb);
+    const teRise = Math.min(1, (Ti-Te)*(tb/r.tau_eq)/(Ti-Te));
+    const x = startX + i*(barW+8);
+
+    // Burn fraction bar (green)
+    const bh = Math.max(1, burnFrac*maxH);
+    ctx.fillStyle='#4f466';ctx.fillRect(x,startY+maxH-bh,barW/2,bh);
+    ctx.strokeStyle='#4f4';ctx.lineWidth=1;ctx.strokeRect(x,startY+maxH-bh,barW/2,bh);
+
+    // Te rise bar (red)
+    const th = Math.min(maxH, Math.max(1, teRise*maxH));
+    ctx.fillStyle='#f4466';ctx.fillRect(x+barW/2,startY+maxH-th,barW/2,th);
+    ctx.strokeStyle='#f44';ctx.lineWidth=1;ctx.strokeRect(x+barW/2,startY+maxH-th,barW/2,th);
+
+    // Label
+    ctx.fillStyle='#aaa';ctx.font='10px sans-serif';ctx.textAlign='center';
+    ctx.fillText(tns+'ns',x+barW/2,startY+maxH+14);
+
+    // Values
+    ctx.font='9px monospace';
+    if(burnFrac<0.01){
+      ctx.fillStyle='#4f4';ctx.fillText((burnFrac*100).toFixed(3)+'%',x+barW/4,startY+maxH-bh-4);
+    } else {
+      ctx.fillStyle='#4f4';ctx.fillText((burnFrac*100).toFixed(1)+'%',x+barW/4,startY+maxH-bh-4);
+    }
+    if(teRise<1){
+      ctx.fillStyle='#f44';ctx.fillText((teRise*100).toFixed(1)+'%',x+3*barW/4,startY+maxH-th-4);
+    } else {
+      ctx.fillStyle='#f44';ctx.fillText('100%+',x+3*barW/4,startY+maxH-th-4);
+    }
+  }
+
+  // Axis labels
+  ctx.fillStyle='#888';ctx.font='10px sans-serif';ctx.textAlign='right';
+  ctx.fillText('100%',startX-8,startY+6);
+  ctx.fillText('0%',startX-8,startY+maxH+4);
+  ctx.textAlign='center';
+  ctx.fillText('パルス時間',w/2,h-4);
+}
+
+function drawSweep(Ti,Te) {
+  const c = document.getElementById('sweepCanvas');
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  const w=c.width,h=c.height;
+
+  ctx.fillStyle='#888';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
+  ctx.fillText('密度スイープ: τ_eq/τ_burn は一定（= 0.0038）',w/2,18);
+
+  const densities=[1e22,1e24,1e26,1e28,1e30,1e32];
+  const px0=100,py0=35,pw=w-140,ph=h-70;
+
+  // Axes
+  ctx.strokeStyle='#555';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(px0,py0);ctx.lineTo(px0,py0+ph);ctx.lineTo(px0+pw,py0+ph);ctx.stroke();
+
+  // Compute ratios
+  const ratios=densities.map(n=>compute(n,Ti,Te).ratio);
+
+  // Y axis: ratio (should be constant ~0.0038)
+  const yMin=0, yMax=0.01;
+
+  // Draw points and line
+  ctx.strokeStyle='#ff0';ctx.lineWidth=2;ctx.beginPath();
+  const pts=[];
+  for(let i=0;i<densities.length;i++){
+    const x=px0+(i/(densities.length-1))*pw;
+    const y=py0+ph-(ratios[i]-yMin)/(yMax-yMin)*ph;
+    pts.push({x,y});
+    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+
+  // Points
+  for(const p of pts){
+    ctx.beginPath();ctx.arc(p.x,p.y,5,0,Math.PI*2);ctx.fillStyle='#ff0';ctx.fill();
+    ctx.beginPath();ctx.arc(p.x,p.y,8,0,Math.PI*2);ctx.fillStyle='#ff044';ctx.fill();
+  }
+
+  // Constant line annotation
+  ctx.strokeStyle='#f44';ctx.lineWidth=1;ctx.setLineDash([4,4]);
+  const constY=py0+ph-(0.0038-yMin)/(yMax-yMin)*ph;
+  ctx.beginPath();ctx.moveTo(px0,constY);ctx.lineTo(px0+pw,constY);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='#f44';ctx.font='bold 11px sans-serif';ctx.textAlign='left';
+  ctx.fillText('= 0.0038（一定）',px0+pw+4,constY+4);
+
+  // X axis labels
+  ctx.fillStyle='#888';ctx.font='10px sans-serif';ctx.textAlign='center';
+  for(let i=0;i<densities.length;i++){
+    const x=px0+(i/(densities.length-1))*pw;
+    const exp=Math.log10(densities[i]);
+    ctx.fillText('10^'+exp.toFixed(0),x,py0+ph+16);
+  }
+  ctx.fillText('n_e (m⁻³)',px0+pw/2,py0+ph+32);
+
+  // Y axis
+  ctx.textAlign='right';
+  ctx.fillText('τ_eq/τ_burn',px0-8,py0-4);
+  ctx.fillText(yMax.toFixed(3),px0-4,py0+6);
+  ctx.fillText('0',px0-4,py0+ph+4);
+}
+
+update();
+</script>
+</body>
+</html>
