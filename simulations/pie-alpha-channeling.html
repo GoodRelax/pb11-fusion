@@ -210,16 +210,17 @@ function drawFlowDiagram() {
   }
 
   for (const b of boxes) {
-    ctx.fillStyle = b.color + '33';
+    // Dark filled box with colored border
+    ctx.fillStyle = '#151530';
     ctx.strokeStyle = b.color;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.roundRect(b.x, b.y, b.w, b.h, 6);
     ctx.fill();
     ctx.stroke();
 
-    ctx.fillStyle = '#fff';
-    ctx.font = '13px sans-serif';
+    ctx.fillStyle = b.color;
+    ctx.font = 'bold 13px sans-serif';
     ctx.textAlign = 'center';
     const lines = b.label.split('\n');
     lines.forEach((l, i) => {
