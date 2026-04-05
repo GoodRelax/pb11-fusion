@@ -36,14 +36,14 @@ p  +  ¹¹B  →  3 × ⁴He  +  8.7 MeV
 要問（yomons）フレームワークで分解した結果：
 
 ```
-■ p-B11ルート（20問）+ D-Tルート（5問）= 合計25問
-🟢 解決済み    2/25  タイミング同期、燃料供給
-🟡 部分解決    7/25  安全の定義、燃料選択、方式選択 等
-🔴 未解決     16/25  P_ie緩和、αチャネリング、壁耐久性、D-T工学問題 等
+■ p-B11ルート（18問）+ D-Tルート（5問）= 合計23問
+🟢 解決済み    2/23  タイミング同期、燃料供給
+🟡 部分解決    7/23  安全の定義、燃料選択、方式選択 等
+🔴 未解決     14/23  P_ie緩和、αチャネリング、壁耐久性、D-T工学問題 等
 ```
 
 最上位の問い：**「そもそも p-B11 が最適燃料か？」**（L0 戦略層）
-最大のボトルネック（p-B11ルート内）：**制動放射問題**（L1-2）
+最大のボトルネック（p-B11ルート内）：**イオン-電子緩和 P_ie/P_fus ≈ 10〜20**（L1-2）
 D-T が「十分安全かつ十分安価」なら、D-T が正解かもしれない。
 
 詳細 → [`yomons/overview.md`](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/overview.md)
@@ -71,6 +71,7 @@ pb11-fusion/
 | トピック | 解説 | アニメーション |
 |---------|------|--------------|
 | 要問ツリー全体・クリティカルパス | [📄 overview.md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/overview.md) | — |
+| **最終結論（全知見の要約）** | [📄 conclusion.md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/conclusion.md) | — |
 | L1 物理層（クーロン障壁・制動放射・ローソン） | [📄 L1-physics.md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/L1-physics.md) | — |
 | L2 工学層（タイミング・耐久・統合） | [📄 L2-engineering.md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/L2-engineering.md) | — |
 | L3 材料層（壁劣化・汚染・液体金属） | [📄 L3-materials.md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/L3-materials.md) | — |
