@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>量子力学的な裏技は使えるか？</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a1a;color:#e0e0e0;font-family:'Segoe UI',sans-serif;padding-top:28px}
+nav{position:fixed;top:0;left:0;right:0;height:28px;background:rgba(10,10,26,.95);border-bottom:1px solid #333;display:flex;align-items:center;padding:0 12px;z-index:999;font-size:13px}
+nav a{color:#88f;text-decoration:none}
+h1{text-align:center;padding:16px 10px 4px;font-size:1.2em;color:#ff9}
+.sub{text-align:center;color:#f66;font-size:.88em;margin-bottom:14px;font-weight:bold}
+.container{max-width:920px;margin:0 auto;padding:0 10px 40px}
+h2{font-size:1em;color:#8cf;margin:18px 0 8px;border-bottom:1px solid #333;padding-bottom:4px}
+canvas{display:block;margin:0 auto;background:#0d0d22;border:1px solid #333;border-radius:6px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin:12px 0}
+.qcard{background:#111130;border:1px solid #333;border-radius:8px;padding:10px;cursor:pointer;transition:all .2s}
+.qcard:hover{border-color:#88f;background:#151540}
+.qcard.active{border-color:#ff0;background:#1a1a10}
+.qcard .qname{font-weight:bold;font-size:.88em;color:#8cf;margin-bottom:3px}
+.qcard .qshort{font-size:.75em;color:#aaa;line-height:1.3}
+.qcard .qresult{margin-top:4px;font-size:.85em;font-weight:bold}
+.detail{background:#111130;border:1px solid #444;border-radius:8px;padding:14px;margin:12px 0;min-height:140px}
+.detail h3{color:#ff9;margin-bottom:6px;font-size:.95em}
+.detail .desc{font-size:.82em;line-height:1.7;color:#ccc}
+.detail .why{color:#f66;font-size:.82em;margin-top:8px;padding:8px;background:#1a0a0a;border-radius:4px;border-left:3px solid #f44}
+.explain{margin:12px 0;padding:10px;background:#0f0f28;border-left:3px solid #f44;border-radius:0 6px 6px 0;font-size:.83em;line-height:1.6}
+.explain strong{color:#ff9}
+</style>
+</head>
+<body>
+<nav><a href="https://github.com/GoodRelax/pb11-fusion#コンテンツ一覧">📋 一覧に戻る</a></nav>
+<h1>量子力学的な裏技は使えるか？</h1>
+<p class="sub">結論: 全滅。電子問題は古典電磁気学の問題であり、量子では解けない。</p>
+
+<div class="container">
+
+<h2>8つの量子裏技 — 全て検討済み</h2>
+<div class="cards" id="qCards"></div>
+<div class="detail" id="detailPanel">
+  <h3 id="dTitle">裏技を選んでください</h3>
+  <div class="desc" id="dDesc">カードをクリックすると詳細を表示します。</div>
+  <div class="why" id="dWhy" style="display:none"></div>
+</div>
+
+<h2>ギャップの可視化（必要量 vs 実現可能量）</h2>
+<canvas id="gapCanvas" width="900" height="360"></canvas>
+
+<h2>全アプローチ総覧（古典A〜E + 量子1〜8）</h2>
+<canvas id="totalCanvas" width="900" height="360"></canvas>
+
+<div class="explain">
+<strong>根本的理由:</strong> 電子問題はクーロン衝突（F = Z₁Z₂e²/4πε₀r²）による古典的なエネルギー移動の問題。
+Z₁Z₂ = 5（ホウ素の原子番号）は物理定数であり、量子力学でも変えられない。
+クーロン散乱断面積 >> 核反応断面積という事実が、全ての密度・温度条件で電子を勝たせる。
+<strong>13のアプローチを検討して、残ったのはαチャネリング1つだけ。</strong>
+</div>
+</div>
+
+<script>
+const tricks = [
+  {
+    name: '1. トンネル効果増強',
+    short: 'Z₁Z₂=5は物理定数',
+    result: '❌', resultColor: '#f44',
+    desc: '核融合反応自体がクーロン障壁のトンネリング。トンネル確率 ∝ exp(−2πη) で η ∝ Z₁Z₂。p-B11では Z₁Z₂=5（D-Tの5倍）で指数関数的に不利。',
+    why: 'Z₁Z₂ = 5 はホウ素の陽子数で決まる物理定数。量子力学をどう使っても原子番号は変えられない。トンネル確率の指数関数的な差は原理的に解消不可能。',
+    gapHave: 0, gapNeed: 100, gapUnit: '（原理的に不可能）', gapLabel: 'Z₁Z₂'
+  },
+  {
+    name: '2. 電子遮蔽の増強',
+    short: '~100eV vs 必要600keV',
+    result: '❌', resultColor: '#f44',
+    desc: '電子雲がクーロン障壁を遮蔽して実効Z₁Z₂を下げる。金属格子中で実測値~100eV。プラズマ中（デバイ遮蔽）では~10eV。',
+    why: '遮蔽エネルギー ~100 eV に対し、p-B11ガモフピークは ~600 keV。3桁（1000倍）足りない。遮蔽は原子スケール（~Å）の現象であり、核反応エネルギースケール（~MeV）には原理的に届かない。',
+    gapHave: 0.1, gapNeed: 600, gapUnit: 'keV', gapLabel: '遮蔽エネルギー'
+  },
+  {
+    name: '3. ¹²C共鳴利用',
+    short: '既にガモフピークとして活用中',
+    result: '—', resultColor: '#888',
+    desc: 'p+¹¹B→¹²C*→3α は ¹²C の励起状態を経由。675keV付近にシャープな共鳴がある。',
+    why: 'ガモフピークは既にこの共鳴を最大限活用した結果。共鳴の位置は核構造（強い力、MeVスケール）で決まっており、外部場（eVスケール）では6桁のギャップがあり操作不能。',
+    gapHave: 100, gapNeed: 100, gapUnit: '%', gapLabel: '共鳴利用率'
+  },
+  {
+    name: '4. ミューオン触媒',
+    short: 'D-T専用、p-B11には効かない',
+    result: '❌', resultColor: '#f44',
+    desc: '電子の代わりにミューオン（質量207倍）を使い原子を1/207に縮小。室温で核融合が起きる。D-Tでは1個で~150回触媒。',
+    why: 'D-Tでもエネルギー赤字（150×17.6MeV=2.64GeV < 生成コスト5GeV）。p-B11ではZ₁Z₂=5でクーロン障壁が高く、触媒効率がD-Tの1/10以下。ミューオン寿命2.2μsは変えられない。',
+    gapHave: 2.64, gapNeed: 5.0, gapUnit: 'GeV', gapLabel: 'エネルギー収支'
+  },
+  {
+    name: '5. パイクノ核融合',
+    short: '超高密度でもP_ie問題は消えない',
+    result: '❌', resultColor: '#f44',
+    desc: '白色矮星内部で起きる。超高密度で量子零点運動が熱運動を超え、温度ゼロでもトンネル効果で核融合する。',
+    why: 'p-B11に必要な密度 ~10³⁰⁻³² m⁻³。仮に実現できても τ_eq = 0.11 ns（既に計算済み）。P_ie問題は密度非依存（τ_eq/τ_burn = 0.0038は不変）。超高密度を作る手段自体も存在しない。',
+    gapHave: 1e31, gapNeed: 1e32, gapUnit: 'm⁻³', gapLabel: '必要密度'
+  },
+  {
+    name: '6. コヒーレント核融合',
+    short: '核波動関数が重ならない',
+    result: '❌', resultColor: '#f44',
+    desc: 'N個の原子核がコヒーレントにトンネルすれば反応率がN²に比例する可能性。光学のディッケ超放射の核融合版。',
+    why: '核力の到達距離 ~1 fm（10⁻¹⁵ m）に対し原子間距離 ~1 Å（10⁻¹⁰ m）= 100,000 fm。5桁離れていて核波動関数が重ならない。コヒーレンスが成立するメカニズムは存在しない。',
+    gapHave: 1, gapNeed: 100000, gapUnit: 'fm', gapLabel: '距離ギャップ'
+  },
+  {
+    name: '7. フォトン支援トンネリング',
+    short: 'レーザー強度が10⁵倍不足',
+    result: '❌', resultColor: '#f44',
+    desc: '強力なレーザー場でクーロン障壁が変形しトンネル確率が上がる。原子物理では実証済み（Keldysh理論）。',
+    why: '原子物理の障壁 ~10eV に対し核物理の障壁 ~3MeV。必要レーザー強度 ~10²⁸ W/cm² vs 世界記録 ~10²³ W/cm²。5桁不足。HB11が部分的にこれを狙うがQ~10⁻⁴。',
+    gapHave: 1e23, gapNeed: 1e28, gapUnit: 'W/cm²', gapLabel: 'レーザー強度'
+  },
+  {
+    name: '8. 二段階触媒反応',
+    short: '核反応経路が存在しない',
+    result: '❌', resultColor: '#f44',
+    desc: '化学触媒のように中間核反応を経由して実効障壁を下げる。p + X → Y*, Y* + ¹¹B → 3α + X のような経路。',
+    why: '核反応は強い力（~MeV）で決まる。化学触媒（~eV）とは6桁スケールが違う。外部場で核準位を操作することは原理的にできない。このような核反応経路は知られていない。',
+    gapHave: 1, gapNeed: 1000000, gapUnit: '倍', gapLabel: 'エネルギースケール差'
+  },
+];
+
+// Cards
+const cardsDiv = document.getElementById('qCards');
+tricks.forEach((t, i) => {
+  const d = document.createElement('div');
+  d.className = 'qcard';
+  d.innerHTML = `
+    <div class="qname">${t.name}</div>
+    <div class="qshort">${t.short}</div>
+    <div class="qresult" style="color:${t.resultColor}">${t.result}</div>
+  `;
+  d.onclick = () => selectTrick(i);
+  cardsDiv.appendChild(d);
+});
+
+function selectTrick(idx) {
+  document.querySelectorAll('.qcard').forEach((c,i) => c.classList.toggle('active', i===idx));
+  const t = tricks[idx];
+  document.getElementById('dTitle').textContent = t.name;
+  document.getElementById('dDesc').textContent = t.desc;
+  document.getElementById('dWhy').style.display = 'block';
+  document.getElementById('dWhy').innerHTML = '<b>なぜダメか:</b> ' + t.why;
+}
+
+// Gap chart
+const gc = document.getElementById('gapCanvas');
+const gctx = gc.getContext('2d');
+
+function drawGaps() {
+  gctx.clearRect(0,0,gc.width,gc.height);
+  const W=gc.width, H=gc.height;
+  gctx.fillStyle='#888';gctx.font='bold 12px sans-serif';gctx.textAlign='center';
+  gctx.fillText('必要量 vs 実現可能量（対数スケール）',W/2,18);
+
+  const items = tricks.filter(t => t.result === '❌' && t.gapHave > 0);
+  const barH = 28, startY = 35, startX = 200, maxW = W - 240;
+
+  items.forEach((t, i) => {
+    const y = startY + i * (barH + 14);
+    const logHave = Math.log10(t.gapHave);
+    const logNeed = Math.log10(t.gapNeed);
+    const logMax = Math.max(logNeed, logHave) + 1;
+    const logMin = Math.min(logNeed, logHave) - 1;
+    const range = logMax - logMin;
+
+    // Label
+    gctx.fillStyle = '#aaa'; gctx.font = '11px sans-serif'; gctx.textAlign = 'right';
+    gctx.fillText(t.name.substring(3), startX - 8, y + barH/2 + 4);
+
+    // Background
+    gctx.fillStyle = '#1a1a3a'; gctx.fillRect(startX, y, maxW, barH);
+
+    // "Have" bar (green)
+    const haveW = Math.max(4, ((logHave - logMin) / range) * maxW);
+    gctx.fillStyle = '#4f466'; gctx.fillRect(startX, y, haveW, barH/2);
+    gctx.strokeStyle = '#4f4'; gctx.lineWidth = 1; gctx.strokeRect(startX, y, haveW, barH/2);
+
+    // "Need" bar (red)
+    const needW = Math.max(4, ((logNeed - logMin) / range) * maxW);
+    gctx.fillStyle = '#f4466'; gctx.fillRect(startX, y + barH/2, needW, barH/2);
+    gctx.strokeStyle = '#f44'; gctx.lineWidth = 1; gctx.strokeRect(startX, y + barH/2, needW, barH/2);
+
+    // Gap annotation
+    const gapFactor = t.gapNeed / t.gapHave;
+    const gapText = gapFactor >= 100 ? Math.round(Math.log10(gapFactor)) + '桁不足' : Math.round(gapFactor) + '倍不足';
+    gctx.fillStyle = '#f44'; gctx.font = 'bold 10px sans-serif'; gctx.textAlign = 'left';
+    gctx.fillText(gapText, startX + needW + 6, y + barH/2 + 4);
+  });
+
+  // Legend
+  gctx.fillStyle = '#4f4'; gctx.font = '10px sans-serif'; gctx.textAlign = 'left';
+  gctx.fillText('■ 実現可能', startX, H - 8);
+  gctx.fillStyle = '#f44';
+  gctx.fillText('■ 必要量', startX + 100, H - 8);
+}
+
+// Total overview chart
+const tc = document.getElementById('totalCanvas');
+const tctx = tc.getContext('2d');
+
+function drawTotal() {
+  tctx.clearRect(0,0,tc.width,tc.height);
+  const W=tc.width, H=tc.height;
+  tctx.fillStyle='#888';tctx.font='bold 12px sans-serif';tctx.textAlign='center';
+  tctx.fillText('全13アプローチの検討結果',W/2,18);
+
+  const all = [
+    {label:'A. 空間的にどかす',     status:'❌', cat:'古典', color:'#f44'},
+    {label:'B. 時間的にどかす',     status:'❌', cat:'古典', color:'#f44'},
+    {label:'C. 原子核に吸収',       status:'❌', cat:'古典', color:'#f44'},
+    {label:'D. エネルギー回収',     status:'🟡', cat:'古典', color:'#fa0'},
+    {label:'E. αチャネリング',      status:'🔴', cat:'古典', color:'#48f'},
+    {label:'1. トンネル増強',       status:'❌', cat:'量子', color:'#f44'},
+    {label:'2. 電子遮蔽',           status:'❌', cat:'量子', color:'#f44'},
+    {label:'3. 共鳴利用',           status:'—',  cat:'量子', color:'#888'},
+    {label:'4. ミューオン触媒',     status:'❌', cat:'量子', color:'#f44'},
+    {label:'5. パイクノ核融合',     status:'❌', cat:'量子', color:'#f44'},
+    {label:'6. コヒーレント核融合', status:'❌', cat:'量子', color:'#f44'},
+    {label:'7. フォトン支援',       status:'❌', cat:'量子', color:'#f44'},
+    {label:'8. 触媒反応',           status:'❌', cat:'量子', color:'#f44'},
+  ];
+
+  const rowH = 22, startY = 40, startX = 50;
+  const colCat = startX, colLabel = startX + 40, colStatus = startX + 220, colBar = startX + 260;
+  const barMax = W - colBar - 40;
+
+  all.forEach((a, i) => {
+    const y = startY + i * rowH;
+
+    // Category
+    tctx.fillStyle = a.cat === '古典' ? '#fa0' : '#a8f';
+    tctx.font = '10px sans-serif'; tctx.textAlign = 'left';
+    tctx.fillText(a.cat, colCat, y + 14);
+
+    // Label
+    tctx.fillStyle = '#ccc'; tctx.font = '11px sans-serif';
+    tctx.fillText(a.label, colLabel, y + 14);
+
+    // Status
+    tctx.fillStyle = a.color; tctx.font = 'bold 12px sans-serif';
+    tctx.fillText(a.status, colStatus, y + 14);
+
+    // Bar (blocked = red, partial = yellow, alive = blue)
+    let bw, bc;
+    if (a.status === '❌') { bw = barMax; bc = '#f4433'; }
+    else if (a.status === '🟡') { bw = barMax * 0.7; bc = '#fa033'; }
+    else if (a.status === '🔴') { bw = barMax * 0.3; bc = '#48f33'; }
+    else { bw = barMax * 0.5; bc = '#88833'; }
+
+    tctx.fillStyle = bc; tctx.fillRect(colBar, y + 2, bw, rowH - 6);
+    tctx.strokeStyle = a.color + '66'; tctx.lineWidth = 1;
+    tctx.strokeRect(colBar, y + 2, bw, rowH - 6);
+  });
+
+  // Summary
+  tctx.fillStyle = '#f44'; tctx.font = 'bold 13px sans-serif'; tctx.textAlign = 'center';
+  tctx.fillText('❌×10  🟡×1  —×1  🔴×1（αチャネリング = 唯一の生存候補）', W/2, H - 10);
+}
+
+drawGaps();
+drawTotal();
+selectTrick(0);
+</script>
+</body>
+</html>
