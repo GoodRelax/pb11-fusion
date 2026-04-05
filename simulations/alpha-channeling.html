@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>αチャネリング — 要問分析</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a1a;color:#e0e0e0;font-family:'Segoe UI',sans-serif;padding-top:28px}
+nav{position:fixed;top:0;left:0;right:0;height:28px;background:rgba(10,10,26,.95);border-bottom:1px solid #333;display:flex;align-items:center;padding:0 12px;z-index:999;font-size:13px}
+nav a{color:#88f;text-decoration:none}
+h1{text-align:center;padding:16px 10px 4px;font-size:1.2em;color:#ff9}
+.sub{text-align:center;color:#aaa;font-size:.82em;margin-bottom:14px}
+.container{max-width:920px;margin:0 auto;padding:0 10px 40px}
+h2{font-size:1em;color:#8cf;margin:18px 0 8px;border-bottom:1px solid #333;padding-bottom:4px}
+canvas{display:block;margin:0 auto;background:#0d0d22;border:1px solid #333;border-radius:6px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:12px 0;align-items:center}
+.controls label{font-size:.82em;color:#aaa}
+.controls input[type=range]{width:180px;accent-color:#48f}
+.val{font-size:.85em;color:#48f;font-weight:bold;min-width:40px}
+.explain{margin:12px 0;padding:10px;background:#0f0f28;border-left:3px solid #48f;border-radius:0 6px 6px 0;font-size:.83em;line-height:1.6}
+.explain strong{color:#ff9}
+.timeline{margin:12px 0}
+.tl-item{display:flex;gap:10px;margin:6px 0;font-size:.82em}
+.tl-year{color:#48f;font-weight:bold;min-width:50px;text-align:right}
+.tl-dot{width:12px;height:12px;border-radius:50%;margin-top:3px;flex-shrink:0}
+.tl-text{color:#ccc;line-height:1.4}
+</style>
+</head>
+<body>
+<nav><a href="https://github.com/GoodRelax/pb11-fusion#コンテンツ一覧">📋 一覧に戻る</a></nav>
+<h1>αチャネリング — p-B11唯一の生存経路</h1>
+<p class="sub">α粒子のエネルギーを波動経由でイオンに直接渡す。32年間未実証。</p>
+
+<div class="container">
+
+<h2>エネルギーフロー: 通常 vs αチャネリング</h2>
+<div class="controls">
+  <label>αチャネリング効率:</label>
+  <input type="range" id="effSlider" min="0" max="100" value="0" oninput="updateFlow()">
+  <span class="val" id="effVal">0%</span>
+</div>
+<canvas id="flowCanvas" width="900" height="350"></canvas>
+
+<h2>効率別: ブレークイーブン達成可能性</h2>
+<canvas id="breakCanvas" width="900" height="280"></canvas>
+
+<div class="explain">
+<strong>Ochs & Fisch (2024) の結論:</strong>
+αチャネリングで熱的陽子にエネルギーを渡すとローソン積が<strong>2.6倍</strong>緩和。
+高速陽子（反応ピーク~620keV）に渡すと<strong>6.9倍</strong>緩和。
+最低50%の効率が必要。80%あれば商用炉の道が見える。
+</div>
+
+<h2>アッシュ蓄積問題（2025年最新）</h2>
+<canvas id="ashCanvas" width="900" height="260"></canvas>
+
+<div class="explain">
+<strong>Ochs, Kolmes & Fisch (2025):</strong> p-B11反応は1回で3個のα粒子を生む。
+蓄積するとn_α/n_i ≈ 40%に達し、P_bremが<strong>100%増加</strong>しQ>0が不可能になる。
+最適α密度は<strong>n_α ≈ 4.5%</strong>。これを維持する「2領域プラズマ」が提案されている。
+</div>
+
+<h2>研究の歴史（32年間）</h2>
+<canvas id="timelineCanvas" width="900" height="340"></canvas>
+
+<h2>成功確率の見積もり</h2>
+<canvas id="probCanvas" width="900" height="200"></canvas>
+
+<div class="explain">
+<strong>次の決定的マイルストーン:</strong> ビーム駆動波→イオンエネルギー転送の<strong>定量測定</strong>。
+TAE C-2W（または後継機）での実験が最短経路。この結果が出るまでp-B11は
+「可能かもしれないし、不可能かもしれない」状態が続く。
+</div>
+
+</div>
+
+<script>
+const e_c=1.602e-19, keV=1e3*e_c;
+
+// Flow diagram
+const fc=document.getElementById('flowCanvas');
+const fctx=fc.getContext('2d');
+
+function updateFlow() {
+  const eff = parseInt(document.getElementById('effSlider').value);
+  document.getElementById('effVal').textContent = eff+'%';
+  drawFlow(eff/100);
+}
+
+function drawFlow(eff) {
+  fctx.clearRect(0,0,fc.width,fc.height);
+  const W=fc.width, H=fc.height;
+
+  // Boxes
+  const boxes = [
+    {x:100, y:50,  w:120, h:50, label:'核融合反応\np+¹¹B→3α', color:'#4f4'},
+    {x:100, y:180, w:120, h:50, label:'α粒子\n3×2.9MeV', color:'#ff0'},
+    {x:400, y:50,  w:120, h:50, label:'イオン\n(p, B)', color:'#f84'},
+    {x:400, y:180, w:120, h:50, label:'電子', color:'#48f'},
+    {x:400, y:300, w:120, h:50, label:'制動放射\n(損失)', color:'#f44'},
+    {x:700, y:110, w:130, h:50, label:'波動\n(IBW等)', color:'#a8f'},
+  ];
+
+  // Only show wave box if channeling > 0
+  const drawBoxes = eff > 0 ? boxes : boxes.slice(0,5);
+
+  for(const b of drawBoxes) {
+    fctx.fillStyle = '#151530';
+    fctx.strokeStyle = b.color;
+    fctx.lineWidth = 2;
+    fctx.beginPath();
+    fctx.roundRect(b.x-b.w/2, b.y-b.h/2, b.w, b.h, 6);
+    fctx.fill(); fctx.stroke();
+    fctx.fillStyle = b.color;
+    fctx.font = 'bold 12px sans-serif';
+    fctx.textAlign = 'center';
+    b.label.split('\n').forEach((l,i,a) => {
+      fctx.fillText(l, b.x, b.y - (a.length-1)*7 + i*14);
+    });
+  }
+
+  // Arrows
+  const alphaToElectron = 1.0 - eff;
+  const alphaToWave = eff;
+
+  // Fusion → Alpha
+  drawArrow(fctx, 100,75, 100,155, '#4f4', 2, 'P_fus=1.0');
+
+  // Alpha → Electron (reduced by channeling)
+  if(alphaToElectron > 0.01) {
+    const w = Math.max(1, alphaToElectron * 4);
+    drawArrow(fctx, 160,195, 340,195, '#ff0', w, `α→電子 ${(alphaToElectron*100).toFixed(0)}%`);
+  }
+
+  // Electron → Bremsstrahlung
+  const pbrem = alphaToElectron * 1.0 + 0.3; // base + alpha contribution
+  drawArrow(fctx, 400,205, 400,275, '#f44', Math.max(1, pbrem*2), `P_brem ${pbrem.toFixed(2)}`);
+
+  // Alpha → Wave → Ion (channeling path)
+  if(eff > 0.01) {
+    drawArrow(fctx, 160,180, 635,125, '#a8f', Math.max(1, eff*4), `α→波動 ${(eff*100).toFixed(0)}%`);
+    drawArrow(fctx, 700,85, 460,60, '#a8f', Math.max(1, eff*4), '波動→イオン');
+  }
+
+  // P_ie arrow (always present, but reduced by channeling)
+  const pie = eff > 0.5 ? 2.0 : (15 - eff * 20);
+  drawArrow(fctx, 400,75, 400,155, '#f44', Math.max(1, Math.min(8, pie/3)), `P_ie=${pie.toFixed(1)}`);
+
+  // Net balance
+  const net = 1.0 - pbrem - (pie > 5 ? pie * 0.1 : 0);
+  const netColor = net > 0 ? '#4f4' : '#f44';
+  fctx.fillStyle = netColor;
+  fctx.font = 'bold 14px sans-serif';
+  fctx.textAlign = 'center';
+  fctx.fillText(`正味収支: ${net > 0 ? '+' : ''}${net.toFixed(2)} ${net > 0 ? '(黒字の可能性)' : '(赤字)'}`, W/2, H-10);
+}
+
+function drawArrow(ctx, x1,y1,x2,y2, color, w, label) {
+  ctx.strokeStyle=color; ctx.lineWidth=w; ctx.globalAlpha=0.7;
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  ctx.globalAlpha=1;
+  const a=Math.atan2(y2-y1,x2-x1), s=6+w;
+  ctx.fillStyle=color;
+  ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-s*Math.cos(a-.4),y2-s*Math.sin(a-.4));
+  ctx.lineTo(x2-s*Math.cos(a+.4),y2-s*Math.sin(a+.4));
+  ctx.fill();
+  if(label){
+    const mx=(x1+x2)/2, my=(y1+y2)/2;
+    ctx.fillStyle=color; ctx.font='bold 10px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(label, mx, my-8);
+  }
+}
+
+// Breakeven chart
+const bc=document.getElementById('breakCanvas');
+const bctx=bc.getContext('2d');
+
+function drawBreak() {
+  bctx.clearRect(0,0,bc.width,bc.height);
+  const W=bc.width, H=bc.height;
+  bctx.fillStyle='#888';bctx.font='bold 12px sans-serif';bctx.textAlign='center';
+  bctx.fillText('αチャネリング効率 vs ローソン積緩和倍率',W/2,18);
+
+  const px0=80,py0=35,pw=W-120,ph=H-70;
+  // Axes
+  bctx.strokeStyle='#555';bctx.lineWidth=1;
+  bctx.beginPath();bctx.moveTo(px0,py0);bctx.lineTo(px0,py0+ph);bctx.lineTo(px0+pw,py0+ph);bctx.stroke();
+
+  // Data points (interpolated from Ochs & Fisch 2024)
+  const data = [
+    {eff:0, thermal:1.0, fast:1.0},
+    {eff:20, thermal:1.3, fast:1.8},
+    {eff:40, thermal:1.8, fast:3.5},
+    {eff:50, thermal:2.6, fast:4.5},
+    {eff:60, thermal:3.0, fast:5.5},
+    {eff:80, thermal:4.5, fast:6.9},
+    {eff:100, thermal:6.0, fast:9.0},
+  ];
+
+  const maxY=10;
+
+  // Grid
+  bctx.strokeStyle='#333';bctx.lineWidth=0.5;
+  for(let y=1;y<=maxY;y++){
+    const py=py0+ph-(y/maxY)*ph;
+    bctx.beginPath();bctx.moveTo(px0,py);bctx.lineTo(px0+pw,py);bctx.stroke();
+    bctx.fillStyle='#666';bctx.font='10px sans-serif';bctx.textAlign='right';
+    bctx.fillText(y+'×',px0-4,py+4);
+  }
+
+  // Threshold line
+  const threshY = py0+ph-(2.6/maxY)*ph;
+  bctx.strokeStyle='#4f4';bctx.lineWidth=1;bctx.setLineDash([4,4]);
+  bctx.beginPath();bctx.moveTo(px0,threshY);bctx.lineTo(px0+pw,threshY);bctx.stroke();
+  bctx.setLineDash([]);
+  bctx.fillStyle='#4f4';bctx.font='10px sans-serif';bctx.textAlign='left';
+  bctx.fillText('← Q>0 可能ライン（2.6×）',px0+pw+4,threshY+4);
+
+  // Draw curves
+  function drawCurve(data, key, color, label) {
+    bctx.strokeStyle=color;bctx.lineWidth=2.5;bctx.beginPath();
+    data.forEach((d,i)=>{
+      const x=px0+(d.eff/100)*pw;
+      const y=py0+ph-(d[key]/maxY)*ph;
+      i?bctx.lineTo(x,y):bctx.moveTo(x,y);
+    });
+    bctx.stroke();
+    // Label
+    const last=data[data.length-1];
+    bctx.fillStyle=color;bctx.font='bold 11px sans-serif';bctx.textAlign='left';
+    bctx.fillText(label,px0+(last.eff/100)*pw+4,py0+ph-(last[key]/maxY)*ph);
+  }
+
+  drawCurve(data,'fast','#48f','→高速陽子');
+  drawCurve(data,'thermal','#fa0','→熱的陽子');
+
+  // X axis
+  bctx.fillStyle='#888';bctx.font='10px sans-serif';bctx.textAlign='center';
+  for(let e=0;e<=100;e+=20){
+    bctx.fillText(e+'%',px0+(e/100)*pw,py0+ph+16);
+  }
+  bctx.fillText('αチャネリング効率',px0+pw/2,py0+ph+32);
+
+  // 50% threshold
+  bctx.strokeStyle='#ff0';bctx.lineWidth=1;bctx.setLineDash([2,4]);
+  const x50=px0+0.5*pw;
+  bctx.beginPath();bctx.moveTo(x50,py0);bctx.lineTo(x50,py0+ph);bctx.stroke();
+  bctx.setLineDash([]);
+  bctx.fillStyle='#ff0';bctx.font='10px sans-serif';
+  bctx.fillText('最低50%必要',x50,py0-4);
+}
+
+// Ash accumulation chart
+const ac=document.getElementById('ashCanvas');
+const actx=ac.getContext('2d');
+
+function drawAsh() {
+  actx.clearRect(0,0,ac.width,ac.height);
+  const W=ac.width, H=ac.height;
+  actx.fillStyle='#888';actx.font='bold 12px sans-serif';actx.textAlign='center';
+  actx.fillText('α粒子蓄積と P_brem 増加率',W/2,18);
+
+  const bars = [
+    {label:'即時排出\n(τ_α=0)', nα:0, pbrem:0, color:'#4f4'},
+    {label:'最適管理\n(n_α=4.5%)', nα:4.5, pbrem:10, color:'#48f'},
+    {label:'τ_α=τ_E/2', nα:20, pbrem:42, color:'#fa0'},
+    {label:'τ_α=τ_E\n(管理なし)', nα:40, pbrem:100, color:'#f44'},
+  ];
+
+  const barW=160, startX=80, startY=50, maxH=H-90;
+
+  bars.forEach((b,i)=>{
+    const x=startX+i*(barW+30);
+    const bh=Math.max(4,(b.pbrem/100)*maxH);
+
+    // Bar
+    actx.fillStyle=b.color+'44';actx.fillRect(x,startY+maxH-bh,barW,bh);
+    actx.strokeStyle=b.color;actx.lineWidth=1.5;actx.strokeRect(x,startY+maxH-bh,barW,bh);
+
+    // Labels
+    actx.fillStyle='#ccc';actx.font='11px sans-serif';actx.textAlign='center';
+    b.label.split('\n').forEach((l,j)=>{
+      actx.fillText(l,x+barW/2,startY+maxH+14+j*13);
+    });
+
+    // Value on bar
+    actx.fillStyle='#fff';actx.font='bold 12px sans-serif';
+    actx.fillText(`P_brem +${b.pbrem}%`,x+barW/2,startY+maxH-bh-8);
+    actx.fillStyle=b.color;actx.font='10px sans-serif';
+    actx.fillText(`n_α=${b.nα}%`,x+barW/2,startY+maxH-bh-22);
+  });
+
+  // Q=0 line
+  actx.strokeStyle='#f44';actx.lineWidth=1;actx.setLineDash([4,4]);
+  const qLine=startY+maxH-(60/100)*maxH;
+  actx.beginPath();actx.moveTo(60,qLine);actx.lineTo(W-20,qLine);actx.stroke();
+  actx.setLineDash([]);
+  actx.fillStyle='#f44';actx.font='bold 10px sans-serif';actx.textAlign='right';
+  actx.fillText('← Q<0 ライン（P_brem +60%超で発電不能）',W-20,qLine-4);
+}
+
+// Timeline
+const tlc=document.getElementById('timelineCanvas');
+const tlctx=tlc.getContext('2d');
+
+function drawTimeline() {
+  tlctx.clearRect(0,0,tlc.width,tlc.height);
+  const W=tlc.width, H=tlc.height;
+
+  const events = [
+    {year:1992, text:'Fisch & Rax: αチャネリング概念を提唱', type:'theory'},
+    {year:1995, text:'トカマクでのIBW実現案', type:'theory'},
+    {year:1997, text:'TFTR: IBWでα粒子拡散経路を確認（間接的）', type:'experiment'},
+    {year:2019, text:'TAE C-2W: ビーム駆動波→イオン加速を直接観測', type:'experiment'},
+    {year:2021, text:'Ochs & Fisch: 非共鳴拡散の理論（PRL）', type:'theory'},
+    {year:2022, text:'ハイブリッド高速+熱陽子方式（PRE）', type:'theory'},
+    {year:2024, text:'ブレークイーブン要件2.6〜6.9倍緩和（PoP）', type:'theory'},
+    {year:2025, text:'アッシュ蓄積防止・2領域プラズマ（PoP）', type:'theory'},
+    {year:2030, text:'転送効率の定量測定？（TAE Da Vinci）', type:'future'},
+    {year:2035, text:'p-B11条件でのαチャネリング実験？', type:'future'},
+  ];
+
+  const px0=80, py0=20, pw=W-120;
+  const yearMin=1990, yearMax=2040, range=yearMax-yearMin;
+
+  // Axis
+  tlctx.strokeStyle='#555';tlctx.lineWidth=1;
+  tlctx.beginPath();tlctx.moveTo(px0,H/2);tlctx.lineTo(px0+pw,H/2);tlctx.stroke();
+
+  // Year markers
+  for(let y=1990;y<=2040;y+=5){
+    const x=px0+((y-yearMin)/range)*pw;
+    tlctx.fillStyle='#555';tlctx.fillRect(x,H/2-4,1,8);
+    tlctx.fillStyle='#888';tlctx.font='10px sans-serif';tlctx.textAlign='center';
+    tlctx.fillText(y,x,H/2+16);
+  }
+
+  // "now" line
+  const nowX=px0+((2026-yearMin)/range)*pw;
+  tlctx.strokeStyle='#ff044';tlctx.lineWidth=1;tlctx.setLineDash([2,3]);
+  tlctx.beginPath();tlctx.moveTo(nowX,py0);tlctx.lineTo(nowX,H-10);tlctx.stroke();
+  tlctx.setLineDash([]);
+  tlctx.fillStyle='#ff0';tlctx.font='10px sans-serif';tlctx.fillText('現在',nowX,H-4);
+
+  events.forEach((ev,i) => {
+    const x = px0+((ev.year-yearMin)/range)*pw;
+    const above = i%2 === 0;
+    const y = above ? H/2-30-Math.random()*60 : H/2+30+Math.random()*60;
+
+    // Dot
+    const color = ev.type==='theory'?'#a8f':ev.type==='experiment'?'#4f4':'#888';
+    tlctx.beginPath();tlctx.arc(x,H/2,5,0,Math.PI*2);tlctx.fillStyle=color;tlctx.fill();
+
+    // Line to label
+    tlctx.strokeStyle=color+'66';tlctx.lineWidth=1;
+    tlctx.beginPath();tlctx.moveTo(x,H/2);tlctx.lineTo(x,y);tlctx.stroke();
+
+    // Label
+    tlctx.fillStyle=color;tlctx.font='bold 10px sans-serif';tlctx.textAlign='center';
+    tlctx.fillText(ev.year,x,y+(above?-4:14));
+    tlctx.fillStyle='#ccc';tlctx.font='9px sans-serif';
+    // Wrap text
+    const words=ev.text.split('');
+    const maxLen=18;
+    for(let j=0;j<ev.text.length;j+=maxLen){
+      const line=ev.text.substring(j,j+maxLen);
+      tlctx.fillText(line,x,y+(above?-16-((ev.text.length-j)/maxLen)*11:26+j/maxLen*11));
+    }
+  });
+
+  // Legend
+  tlctx.font='10px sans-serif';
+  [{c:'#a8f',l:'理論'},{c:'#4f4',l:'実験'},{c:'#888',l:'将来'}].forEach((lg,i)=>{
+    tlctx.fillStyle=lg.c;
+    tlctx.beginPath();tlctx.arc(px0+i*80,H-20,4,0,Math.PI*2);tlctx.fill();
+    tlctx.fillStyle='#ccc';tlctx.textAlign='left';
+    tlctx.fillText(lg.l,px0+i*80+8,H-16);
+  });
+}
+
+// Probability chart
+const pbc=document.getElementById('probCanvas');
+const pbctx=pbc.getContext('2d');
+
+function drawProb() {
+  pbctx.clearRect(0,0,pbc.width,pbc.height);
+  const W=pbc.width, H=pbc.height;
+  pbctx.fillStyle='#888';pbctx.font='bold 12px sans-serif';pbctx.textAlign='center';
+  pbctx.fillText('αチャネリング成功確率の主観的見積もり',W/2,18);
+
+  const scenarios = [
+    {label:'効率>50%で実証\n→ 商用炉の道', prob:15, color:'#4f4'},
+    {label:'効率10-50%\n→ ニッチ用途のみ', prob:25, color:'#fa0'},
+    {label:'効率<10%\nまたは不可能\n→ p-B11終了', prob:60, color:'#f44'},
+  ];
+
+  const startX=100, barH=40, maxW=W-200, startY=40;
+  scenarios.forEach((s,i) => {
+    const y=startY+i*(barH+20);
+    const bw=(s.prob/100)*maxW;
+
+    pbctx.fillStyle=s.color+'44';pbctx.fillRect(startX,y,bw,barH);
+    pbctx.strokeStyle=s.color;pbctx.lineWidth=1.5;pbctx.strokeRect(startX,y,bw,barH);
+
+    pbctx.fillStyle='#fff';pbctx.font='bold 14px sans-serif';pbctx.textAlign='center';
+    pbctx.fillText(s.prob+'%',startX+bw/2,y+barH/2+5);
+
+    pbctx.fillStyle='#ccc';pbctx.font='11px sans-serif';pbctx.textAlign='left';
+    s.label.split('\n').forEach((l,j) => {
+      pbctx.fillText(l,startX+bw+12,y+12+j*14);
+    });
+  });
+}
+
+// Init
+updateFlow();
+drawBreak();
+drawAsh();
+drawTimeline();
+drawProb();
+</script>
+</body>
+</html>
