@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ビーム駆動非熱核融合シミュレーション</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a1a;color:#e0e0e0;font-family:'Segoe UI',sans-serif;padding-top:28px}
+nav{position:fixed;top:0;left:0;right:0;height:28px;background:rgba(10,10,26,.95);border-bottom:1px solid #333;display:flex;align-items:center;padding:0 12px;z-index:999;font-size:13px}
+nav a{color:#88f;text-decoration:none}
+h1{text-align:center;padding:16px 10px 4px;font-size:1.2em;color:#ff9}
+.sub{text-align:center;color:#aaa;font-size:.82em;margin-bottom:14px}
+.container{max-width:920px;margin:0 auto;padding:0 10px 40px}
+h2{font-size:1em;color:#8cf;margin:18px 0 8px;border-bottom:1px solid #333;padding-bottom:4px}
+canvas{display:block;margin:0 auto;background:#0d0d22;border:1px solid #333;border-radius:6px}
+.controls{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:12px 0;align-items:center}
+.controls label{font-size:.82em;color:#aaa}
+.controls select,.controls button{background:#1a1a3a;color:#e0e0e0;border:1px solid #555;border-radius:4px;padding:5px 10px;font-size:.85em;cursor:pointer}
+.controls button:hover{background:#2a2a5a}
+.controls button.active{background:#2a5a2a;border-color:#4f4;color:#4f4}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:10px 0}
+.stat{background:#111130;border:1px solid #333;border-radius:6px;padding:8px;text-align:center}
+.stat .sv{font-size:1.1em;font-weight:bold}
+.stat .sl{font-size:.75em;color:#888;margin-top:2px}
+.explain{margin:12px 0;padding:10px;background:#0f0f28;border-left:3px solid #88f;border-radius:0 6px 6px 0;font-size:.83em;line-height:1.6}
+.explain strong{color:#ff9}
+</style>
+</head>
+<body>
+<nav><a href="https://github.com/GoodRelax/pb11-fusion#コンテンツ一覧">📋 一覧に戻る</a></nav>
+<h1>ビーム駆動非熱核融合</h1>
+<p class="sub">高エネルギービームをプラズマに撃ち込み、直接核融合させる</p>
+
+<div class="container">
+
+<h2>ビーム陽子の一生（シミュレーション）</h2>
+<canvas id="simCanvas" width="900" height="400"></canvas>
+<div class="controls">
+  <button id="btnFire" onclick="fireBeam()">🔫 ビーム発射</button>
+  <button id="btnAuto" onclick="toggleAuto()">⚡ 連続発射</button>
+  <button onclick="resetStats()">🔄 リセット</button>
+  <label>ビームエネルギー:</label>
+  <select id="selEnergy" onchange="resetStats()">
+    <option value="600" selected>600 keV（共鳴ピーク）</option>
+    <option value="300">300 keV</option>
+    <option value="150">150 keV</option>
+  </select>
+</div>
+<div class="stats">
+  <div class="stat"><div class="sv" id="sFired" style="color:#4af">0</div><div class="sl">発射数</div></div>
+  <div class="stat"><div class="sv" id="sFusion" style="color:#ff0">0</div><div class="sl">核融合数</div></div>
+  <div class="stat"><div class="sv" id="sProb" style="color:#4f4">—</div><div class="sl">核融合確率</div></div>
+  <div class="stat"><div class="sv" id="sQ" style="color:#f44">—</div><div class="sl">Q値</div></div>
+  <div class="stat"><div class="sv" id="sElec" style="color:#f84">—</div><div class="sl">電子に失った%</div></div>
+</div>
+
+<div class="explain">
+<strong>見どころ:</strong> ビーム陽子（青い大きな丸）がプラズマ中を進む。
+赤い火花＝電子との衝突でエネルギーを失う（これが支配的）。
+まれに黄色い爆発＝核融合反応（3個のα粒子が飛び出す）。
+<strong>ほとんどのビームは核融合せずに電子にエネルギーを奪われて止まる。</strong>
+</div>
+
+<h2>エネルギーの行き先（ビーム vs 固体 vs 熱核融合）</h2>
+<canvas id="compareCanvas" width="900" height="300"></canvas>
+
+<h2>熱核融合 vs ビーム駆動: 本質は同じ</h2>
+<canvas id="essenceCanvas" width="900" height="250"></canvas>
+
+<div class="explain">
+<strong>結論:</strong> ビーム駆動は制動放射問題を「構造的に回避」するように見えるが、
+<strong>ビーム→電子阻止能</strong>がP_ieの代わりに立ちはだかる。
+クーロン断面積 >> 核反応断面積という根本的事実は方式を変えても変わらない。
+形が違うだけで、本質は同じ：<strong>電子がエネルギーを奪う。</strong>
+</div>
+
+</div>
+
+<script>
+const sc = document.getElementById('simCanvas');
+const ctx = sc.getContext('2d');
+const W = sc.width, H = sc.height;
+
+let beams = [];
+let sparks = [];
+let alphas = [];
+let fired = 0, fusions = 0;
+let autoMode = false;
+let autoTimer = null;
+let animId;
+
+// Plasma background particles
+const bgElectrons = [];
+const bgIons = [];
+for(let i=0;i<80;i++) bgElectrons.push({x:200+Math.random()*650, y:20+Math.random()*(H-40), vx:(Math.random()-.5)*3, vy:(Math.random()-.5)*3});
+for(let i=0;i<30;i++) bgIons.push({x:200+Math.random()*650, y:20+Math.random()*(H-40), vx:(Math.random()-.5)*.5, vy:(Math.random()-.5)*.5});
+
+function getBeamEnergy() { return parseInt(document.getElementById('selEnergy').value); }
+function getFusionProb() {
+  const E = getBeamEnergy();
+  if(E >= 600) return 1/200;  // scaled up for visualization
+  if(E >= 300) return 1/500;
+  return 1/1000;
+}
+
+function fireBeam() {
+  const E = getBeamEnergy();
+  beams.push({
+    x: 30, y: H/2 + (Math.random()-.5)*100,
+    vx: 4 + E/200, vy: (Math.random()-.5)*0.5,
+    energy: E, maxE: E, alive: true,
+    electronLoss: 0
+  });
+  fired++;
+  updateStats();
+}
+
+function toggleAuto() {
+  autoMode = !autoMode;
+  document.getElementById('btnAuto').className = autoMode ? 'active' : '';
+  if(autoMode) {
+    autoTimer = setInterval(fireBeam, 150);
+  } else {
+    clearInterval(autoTimer);
+  }
+}
+
+function resetStats() {
+  fired = 0; fusions = 0;
+  beams = []; sparks = []; alphas = [];
+  updateStats();
+}
+
+function updateStats() {
+  document.getElementById('sFired').textContent = fired;
+  document.getElementById('sFusion').textContent = fusions;
+  document.getElementById('sProb').textContent = fired > 0 ? (fusions/fired*100).toFixed(2)+'%' : '—';
+  const E = getBeamEnergy();
+  const Efus = 8700; // keV
+  const Q = fired > 0 ? (fusions * Efus * 0.7) / (fired * E / 0.5) : 0;
+  document.getElementById('sQ').textContent = fired > 0 ? Q.toFixed(4) : '—';
+  document.getElementById('sQ').style.color = Q >= 1 ? '#4f4' : '#f44';
+  // Electron loss estimate
+  const eLoss = 80; // ~80% at Te=10keV
+  document.getElementById('sElec').textContent = eLoss + '%';
+}
+
+function animate() {
+  ctx.fillStyle = '#0d0d22';
+  ctx.fillRect(0,0,W,H);
+
+  // Plasma region
+  ctx.fillStyle = '#1a1a3a';
+  ctx.fillRect(180, 0, W-180, H);
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(180,0); ctx.lineTo(180,H); ctx.stroke();
+  ctx.fillStyle = '#33446644';
+  ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('← ビーム入射', 90, 20);
+  ctx.fillStyle = '#44668844';
+  ctx.fillText('ホウ素プラズマ →', 540, 20);
+
+  // Background electrons (small, fast, red)
+  bgElectrons.forEach(e => {
+    e.x += e.vx; e.y += e.vy;
+    if(e.x < 200 || e.x > W-10) e.vx *= -1;
+    if(e.y < 10 || e.y > H-10) e.vy *= -1;
+    ctx.fillStyle = '#f4466633';
+    ctx.beginPath(); ctx.arc(e.x, e.y, 1.5, 0, Math.PI*2); ctx.fill();
+  });
+
+  // Background ions (larger, slow, blue)
+  bgIons.forEach(ion => {
+    ion.x += ion.vx; ion.y += ion.vy;
+    if(ion.x < 200 || ion.x > W-10) ion.vx *= -1;
+    if(ion.y < 10 || ion.y > H-10) ion.vy *= -1;
+    ctx.fillStyle = '#4488ff22';
+    ctx.beginPath(); ctx.arc(ion.x, ion.y, 4, 0, Math.PI*2); ctx.fill();
+  });
+
+  // Beams
+  beams = beams.filter(b => b.alive && b.x < W+20 && b.energy > 0);
+  beams.forEach(b => {
+    if(b.x > 180) {
+      // Electron collisions (energy loss)
+      if(Math.random() < 0.08) {
+        b.energy -= b.maxE * 0.03;
+        b.electronLoss += b.maxE * 0.03;
+        b.vx *= 0.97;
+        sparks.push({x:b.x, y:b.y, life:12, color:'#f44'});
+      }
+      // Fusion check
+      if(Math.random() < getFusionProb() * 0.02 && b.energy > 100) {
+        fusions++;
+        b.alive = false;
+        // Spawn 3 alpha particles
+        for(let i=0;i<3;i++) {
+          const a = (i/3)*Math.PI*2 + Math.random()*0.5;
+          alphas.push({x:b.x, y:b.y, vx:Math.cos(a)*6, vy:Math.sin(a)*6, life:60});
+        }
+        // Explosion
+        for(let i=0;i<12;i++) {
+          sparks.push({x:b.x+(Math.random()-.5)*20, y:b.y+(Math.random()-.5)*20, life:20, color:'#ff0'});
+        }
+        updateStats();
+      }
+    }
+    b.x += b.vx;
+    b.y += b.vy;
+
+    // Draw beam particle
+    const r = 3 + (b.energy / b.maxE) * 5;
+    const alpha = Math.max(0.2, b.energy / b.maxE);
+    ctx.fillStyle = `rgba(68,170,255,${alpha})`;
+    ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = `rgba(68,170,255,${alpha*0.3})`;
+    ctx.beginPath(); ctx.arc(b.x, b.y, r*2, 0, Math.PI*2); ctx.fill();
+
+    // Energy bar above beam
+    if(b.x > 180 && b.x < W-40) {
+      const barW = 40;
+      const fill = (b.energy / b.maxE) * barW;
+      ctx.fillStyle = '#333'; ctx.fillRect(b.x-barW/2, b.y-r-8, barW, 4);
+      ctx.fillStyle = b.energy/b.maxE > 0.5 ? '#4f4' : b.energy/b.maxE > 0.2 ? '#fa0' : '#f44';
+      ctx.fillRect(b.x-barW/2, b.y-r-8, fill, 4);
+    }
+
+    // If energy depleted, die
+    if(b.energy <= 0) {
+      b.alive = false;
+      sparks.push({x:b.x, y:b.y, life:15, color:'#666'});
+    }
+  });
+
+  // Alpha particles
+  alphas = alphas.filter(a => a.life > 0);
+  alphas.forEach(a => {
+    a.x += a.vx; a.y += a.vy; a.life--;
+    ctx.fillStyle = `rgba(255,255,0,${a.life/60})`;
+    ctx.beginPath(); ctx.arc(a.x, a.y, 4, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = `rgba(255,255,0,${a.life/120})`;
+    ctx.beginPath(); ctx.arc(a.x, a.y, 8, 0, Math.PI*2); ctx.fill();
+  });
+
+  // Sparks
+  sparks = sparks.filter(s => s.life > 0);
+  sparks.forEach(s => {
+    s.life--;
+    ctx.fillStyle = s.color + Math.floor(s.life/20*15).toString(16);
+    ctx.beginPath(); ctx.arc(s.x+(Math.random()-.5)*4, s.y+(Math.random()-.5)*4, 2, 0, Math.PI*2); ctx.fill();
+  });
+
+  // Legend
+  ctx.fillStyle='#4af';ctx.font='10px sans-serif';ctx.textAlign='left';
+  ctx.fillText('● ビーム陽子',10,H-30);
+  ctx.fillStyle='#f44';ctx.fillText('● 電子との衝突（エネルギー損失）',10,H-16);
+  ctx.fillStyle='#ff0';ctx.fillText('● 核融合！（3α粒子）',250,H-16);
+  ctx.fillStyle='#666';ctx.fillText('● 停止（電子に全エネルギーを奪われた）',250,H-30);
+
+  animId = requestAnimationFrame(animate);
+}
+
+// Compare chart
+const cc = document.getElementById('compareCanvas');
+const cctx = cc.getContext('2d');
+
+function drawCompare() {
+  cctx.clearRect(0,0,cc.width,cc.height);
+  const cW=cc.width, cH=cc.height;
+  cctx.fillStyle='#888';cctx.font='bold 12px sans-serif';cctx.textAlign='center';
+  cctx.fillText('エネルギーの行き先（方式別比較）',cW/2,18);
+
+  const methods = [
+    {name:'ビーム-固体\n(beam-target)', electron:99.99, ion:0.01, fusion:0.001, q:'~10⁻⁵'},
+    {name:'ビーム-プラズマ\n(beam-driven)', electron:80, ion:19.9, fusion:0.1, q:'~10⁻²'},
+    {name:'熱核融合\n(thermal)', electron:60, ion:39, fusion:1, q:'~1?'},
+  ];
+
+  const barW=200, barH=140, startX=80, startY=50, gap=50;
+
+  methods.forEach((m,i) => {
+    const x = startX + i*(barW+gap);
+
+    // Stacked bar
+    const eH = (m.electron/100)*barH;
+    const iH = (m.ion/100)*barH;
+    const fH = Math.max(2, (m.fusion/100)*barH);
+
+    // Electron (red)
+    cctx.fillStyle='#f4488';cctx.fillRect(x,startY,barW,eH);
+    cctx.strokeStyle='#f44';cctx.lineWidth=1;cctx.strokeRect(x,startY,barW,eH);
+    // Ion (blue)
+    cctx.fillStyle='#48f88';cctx.fillRect(x,startY+eH,barW,iH);
+    cctx.strokeStyle='#48f';cctx.strokeRect(x,startY+eH,barW,iH);
+    // Fusion (yellow)
+    cctx.fillStyle='#ff0aa';cctx.fillRect(x,startY+eH+iH,barW,fH);
+    cctx.strokeStyle='#ff0';cctx.lineWidth=2;cctx.strokeRect(x,startY+eH+iH,barW,fH);
+
+    // Labels in bars
+    cctx.fillStyle='#fff';cctx.font='bold 11px sans-serif';cctx.textAlign='center';
+    if(eH>15) cctx.fillText(`電子 ${m.electron}%`,x+barW/2,startY+eH/2+4);
+    if(iH>15) cctx.fillText(`イオン ${m.ion}%`,x+barW/2,startY+eH+iH/2+4);
+    cctx.fillStyle='#ff0';cctx.font='bold 10px sans-serif';
+    cctx.fillText(`核融合 ${m.fusion}%`,x+barW/2,startY+barH+14);
+
+    // Method name
+    cctx.fillStyle='#ccc';cctx.font='11px sans-serif';
+    m.name.split('\n').forEach((l,j)=>{
+      cctx.fillText(l,x+barW/2,startY+barH+30+j*14);
+    });
+
+    // Q value
+    cctx.fillStyle='#f44';cctx.font='bold 12px sans-serif';
+    cctx.fillText(`Q ${m.q}`,x+barW/2,startY+barH+62);
+  });
+
+  // Legend
+  cctx.font='10px sans-serif';cctx.textAlign='left';
+  [{c:'#f44',l:'電子に奪われる'},{c:'#48f',l:'イオンに渡る'},{c:'#ff0',l:'核融合に使われる'}].forEach((lg,i)=>{
+    cctx.fillStyle=lg.c;cctx.fillRect(startX+i*180,cH-16,12,12);
+    cctx.fillStyle='#ccc';cctx.fillText(lg.l,startX+i*180+16,cH-6);
+  });
+}
+
+// Essence chart
+const ec = document.getElementById('essenceCanvas');
+const ectx = ec.getContext('2d');
+
+function drawEssence() {
+  ectx.clearRect(0,0,ec.width,ec.height);
+  const eW=ec.width, eH=ec.height;
+  ectx.fillStyle='#888';ectx.font='bold 12px sans-serif';ectx.textAlign='center';
+  ectx.fillText('形が違うだけで本質は同じ: 電子がエネルギーを奪う',eW/2,18);
+
+  const rows = [
+    {method:'熱核融合', source:'バルクイオン\n(300 keV)', mechanism:'イオン-電子緩和\n(P_ie)', drain:'電子加熱\n→制動放射', ratio:'P_ie/P_fus≈74', color:'#f84'},
+    {method:'ビーム駆動', source:'ビーム陽子\n(600 keV)', mechanism:'ビーム-電子阻止能\n(クーロン減速)', drain:'電子加熱\n→制動放射', ratio:'~80%が電子へ', color:'#4af'},
+    {method:'ビーム-固体', source:'ビーム陽子\n(600 keV)', mechanism:'束縛電子阻止能\n(100keV/μm)', drain:'電子励起\n→熱→散逸', ratio:'~99.99%が電子へ', color:'#a8f'},
+  ];
+
+  const startY=45, rowH=60, colX=[80,220,400,580,720];
+  const headers=['方式','エネルギー源','減速メカニズム','損失先','電子への分配'];
+
+  // Headers
+  headers.forEach((h,i) => {
+    ectx.fillStyle='#666';ectx.font='bold 10px sans-serif';ectx.textAlign='center';
+    ectx.fillText(h,colX[i],startY-8);
+  });
+
+  rows.forEach((r,i) => {
+    const y = startY + 10 + i*rowH;
+
+    // Row bg
+    ectx.fillStyle = r.color+'11';
+    ectx.fillRect(20, y-5, eW-40, rowH-5);
+
+    // Cells
+    const cells = [r.method, r.source, r.mechanism, r.drain, r.ratio];
+    cells.forEach((c,j) => {
+      ectx.fillStyle = j===4 ? '#f44' : r.color;
+      ectx.font = j===0 ? 'bold 12px sans-serif' : '11px sans-serif';
+      ectx.textAlign = 'center';
+      c.split('\n').forEach((l,k) => {
+        ectx.fillText(l, colX[j], y + 15 + k*13);
+      });
+    });
+
+    // Arrows between columns
+    for(let j=0;j<4;j++) {
+      ectx.strokeStyle=r.color+'66';ectx.lineWidth=1;
+      ectx.beginPath();
+      ectx.moveTo(colX[j]+60,y+18);
+      ectx.lineTo(colX[j+1]-60,y+18);
+      ectx.stroke();
+      // arrowhead
+      ectx.fillStyle=r.color+'66';
+      ectx.beginPath();
+      ectx.moveTo(colX[j+1]-60,y+18);
+      ectx.lineTo(colX[j+1]-68,y+14);
+      ectx.lineTo(colX[j+1]-68,y+22);
+      ectx.fill();
+    }
+  });
+
+  // Common conclusion
+  ectx.fillStyle='#f44';ectx.font='bold 13px sans-serif';ectx.textAlign='center';
+  ectx.fillText('全方式共通: クーロン断面積 >> 核反応断面積 → 電子が常に勝つ',eW/2,eH-10);
+}
+
+drawCompare();
+drawEssence();
+animate();
+</script>
+</body>
+</html>

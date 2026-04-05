@@ -94,6 +94,7 @@ pb11-fusion/
 | P_ieパルス計算（「一瞬のスキ」は存在しない） | [📄 md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/pie-pulse-calculation.md) | [▶ html](https://goodrelax.github.io/pb11-fusion/simulations/pie-pulse-calculation.html) |
 | p-B11プロジェクト別・電子対策比較 | [📄 md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/pb11-electron-strategies.md) | [▶ html](https://goodrelax.github.io/pb11-fusion/simulations/pb11-electron-strategies.html) |
 | 量子力学的な裏技は使えるか？（全滅） | [📄 md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/quantum-tricks.md) | [▶ html](https://goodrelax.github.io/pb11-fusion/simulations/quantum-tricks.html) |
+| ビーム駆動非熱核融合（プラズマを燃やさずに反応） | [📄 md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/beam-driven-fusion.md) | [▶ html](https://goodrelax.github.io/pb11-fusion/simulations/beam-driven-fusion.html) |
 | αチャネリング要問分析（唯一の生存経路） | [📄 md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/alpha-channeling.md) | [▶ html](https://goodrelax.github.io/pb11-fusion/simulations/alpha-channeling.html) |
 
 **4サイクル方式の分析:**
