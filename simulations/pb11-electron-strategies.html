@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>p-B11プロジェクト別・電子対策比較</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a1a;color:#e0e0e0;font-family:'Segoe UI',sans-serif;padding-top:28px}
+nav{position:fixed;top:0;left:0;right:0;height:28px;background:rgba(10,10,26,.95);border-bottom:1px solid #333;display:flex;align-items:center;padding:0 12px;z-index:999;font-size:13px}
+nav a{color:#88f;text-decoration:none}
+h1{text-align:center;padding:16px 10px 4px;font-size:1.2em;color:#ff9}
+.sub{text-align:center;color:#aaa;font-size:.82em;margin-bottom:14px}
+.container{max-width:940px;margin:0 auto;padding:0 10px 40px}
+h2{font-size:1em;color:#8cf;margin:18px 0 8px;border-bottom:1px solid #333;padding-bottom:4px}
+canvas{display:block;margin:0 auto;background:#0d0d22;border:1px solid #333;border-radius:6px}
+
+/* Project cards */
+.projects{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin:12px 0}
+.pcard{background:#111130;border:2px solid #333;border-radius:8px;padding:12px;cursor:pointer;transition:all .2s}
+.pcard:hover{border-color:#88f;background:#151540}
+.pcard.active{border-color:#ff0;background:#1a1a10}
+.pcard .pname{font-weight:bold;font-size:.95em;margin-bottom:4px}
+.pcard .pmethod{color:#aaa;font-size:.78em;line-height:1.4}
+.pcard .pverdict{margin-top:6px;font-size:.78em;padding:3px 8px;border-radius:4px;display:inline-block}
+
+/* Detail panel */
+.detail{background:#111130;border:1px solid #444;border-radius:8px;padding:16px;margin:12px 0;min-height:180px}
+.detail h3{color:#ff9;margin-bottom:8px}
+.detail .info{font-size:.82em;line-height:1.7;color:#ccc}
+.detail .problem{color:#f66;font-size:.82em;margin-top:8px;padding:8px;background:#1a0a0a;border-radius:4px;border-left:3px solid #f44}
+
+.explain{margin:12px 0;padding:10px;background:#0f0f28;border-left:3px solid #f44;border-radius:0 6px 6px 0;font-size:.83em;line-height:1.6}
+.explain strong{color:#ff9}
+</style>
+</head>
+<body>
+<nav><a href="https://github.com/GoodRelax/pb11-fusion#コンテンツ一覧">📋 一覧に戻る</a></nav>
+<h1>p-B11プロジェクト別・電子対策比較</h1>
+<p class="sub">各社は「電子の呪い」にどう立ち向かっているか？</p>
+
+<div class="container">
+
+<h2>プロジェクト比較（見込み順）</h2>
+<canvas id="progressCanvas" width="900" height="280"></canvas>
+
+<h2>プロジェクト詳細</h2>
+<div class="projects" id="projectCards"></div>
+<div class="detail" id="detailPanel">
+  <h3 id="dTitle">プロジェクトを選択</h3>
+  <div class="info" id="dInfo">上のカードをクリックすると詳細を表示します。</div>
+  <div class="problem" id="dProblem" style="display:none"></div>
+</div>
+
+<h2>電子対策マトリクス（A〜E × プロジェクト）</h2>
+<canvas id="matrixCanvas" width="900" height="300"></canvas>
+
+<h2>全員に共通する壁</h2>
+<canvas id="wallCanvas" width="900" height="200"></canvas>
+
+<div class="explain">
+<strong>結論:</strong> P_ie（イオン-電子緩和）を正面から解決しているプロジェクトは存在しない。
+TAEは将来的にαチャネリングに期待、HB11は熱プラズマを避けて回避、LPPは物理的に疑問な主張。
+<strong>αチャネリングの実験的検証が、p-B11核融合全体の生死を分ける。</strong>
+</div>
+
+</div>
+
+<script>
+const projects = [
+  {
+    name: 'TAE Technologies',
+    color: '#4af',
+    method: 'FRC + NBI',
+    electron: 'FRC高βで Ti>>Te 非平衡 + 将来αチャネリング',
+    temp: 7000, tempNeed: 300000,
+    gap: '43倍（温度）',
+    qDist: '数段階',
+    verified: '🟢 査読論文多数',
+    verdict: '最も進んでいるがp-B11まで43倍のギャップ。P_ie問題はαチャネリング頼み。',
+    verdictColor: '#4af',
+    progress: 60,
+    strategies: {A:0, B:0, C:0, D:1, E:0.3},
+    unique: 'FRC高β + NBI非平衡',
+    problem: 'P_ie問題への解答がαチャネリング（未実証）のみ。現在の温度（~7000万℃）からp-B11に必要な温度（~30億℃）まで43倍。Ti/Te≈4をkeV領域で達成しているが、300 keV領域での維持は未知。',
+    detail: '2023: LHDでp-B11核融合の初計測成功（Nature Comm.）\n2025: NBIのみでFRC生成・加熱・安定化に成功\nC-2Wで安定FRC 30ms、Ti+Te > 3 keV\n資金: 60億ドル超（Trump Media合併）\nDa Vinci（次世代機）2030年代計画'
+  },
+  {
+    name: 'HB11 Energy',
+    color: '#f84',
+    method: 'ペタワットレーザー駆動',
+    electron: '非熱核融合で制動放射を構造的に回避',
+    temp: null, tempNeed: null,
+    gap: '10⁴倍（Q値）',
+    qDist: 'Q ~ 10⁻⁴',
+    verified: '🟡 査読論文あり、独立追試限定',
+    verdict: '制動放射は回避できるが、レーザー効率がQ>1を阻む。',
+    verdictColor: '#f84',
+    progress: 25,
+    strategies: {A:0, B:0, C:0, D:0, E:0},
+    unique: 'レーザー駆動非熱核融合',
+    problem: 'アバランシェ倍率: 理論10³-10⁴ vs 実験10-100。ブレークイーブンまで10⁴倍不足。レーザーの壁コンセント効率（10-30%）を含むとQ>1はさらに困難。制動放射は回避するが、レーザーエネルギーの大部分は電子加熱に消費される→結局電子にエネルギーを奪われる構造は同じ。',
+    detail: '故 Heinrich Hora 教授の理論に基づく\nLFEX kJレーザー実験: ~10¹¹ α粒子/ショット\nPhys. Rev. Research 7, 013230 (2025)\n高ゲインバーン伝播は未実証'
+  },
+  {
+    name: 'LPPFusion',
+    color: '#a6f',
+    method: 'Dense Plasma Focus',
+    electron: 'GT級磁場で量子制動放射抑制（ランダウ量子化）',
+    temp: 200, tempNeed: 300,
+    gap: '磁場が6-7桁不足',
+    qDist: '大幅不足',
+    verified: '🟡 イオン温度は実証。量子効果は未検証',
+    verdict: '核心主張（GT級磁場）に6-7桁の矛盾。物理的に非現実的。',
+    verdictColor: '#a6f',
+    progress: 12,
+    strategies: {A:0, B:0, C:0, D:0, E:0},
+    unique: '量子磁場効果（主張）',
+    problem: '量子制動放射抑制に必要な磁場: ~4 GT（ギガテスラ=10⁹ T）。DPFピンチの実測磁場: 10²-10³ T。ギャップ: 6-7桁（100万〜1000万倍）。この主張は独立検証されていない。イオン温度 >200 keV は達成しているが、Q値は大幅に不足。',
+    detail: 'FF-2B装置で平均イオンエネルギー > 200 keV\n2024年11月: デカボラン燃料での初ショット\nLerner & Hassan, Frontiers in Physics (2024)\nイオン温度はp-B11に必要な領域に到達'
+  },
+  {
+    name: 'Marvel Fusion',
+    color: '#8cf',
+    method: 'fsレーザー + ナノ構造ターゲット',
+    electron: 'ナノ構造でレーザー吸収効率を大幅向上',
+    temp: null, tempNeed: null,
+    gap: '未確定',
+    qDist: '未確定',
+    verified: '🔴 自社発表中心',
+    verdict: '最も初期段階。核融合実験結果なし。評価不能。',
+    verdictColor: '#8cf',
+    progress: 5,
+    strategies: {A:0, B:0, C:0, D:0, E:0},
+    unique: 'ナノ構造ターゲット',
+    problem: '核心技術の査読論文が限定的。核融合実験結果はまだない。ナノ構造ターゲットのレーザー吸収効率向上は原理的に有望だが、p-B11でのQ>1に繋がるかは全く未知。',
+    detail: '資金: 4億ドル超\nコロラド州立大学と100Jレーザー2基の実証施設建設中\n2027年初頭運用開始予定\n半導体リソグラフィでターゲット量産'
+  },
+  {
+    name: 'LINEA Innovations',
+    color: '#4c8',
+    method: 'FRC + タンデムミラー + ビーム駆動',
+    electron: 'ビーム駆動非熱核融合 + ミラー端損失で電子排出',
+    temp: null, tempNeed: null,
+    gap: '未確定（定量データなし）',
+    qDist: '未確定',
+    verified: '🔴 査読論文なし（技術ページのみ）',
+    verdict: '独自アプローチだが定量的裏付けがない。',
+    verdictColor: '#4c8',
+    progress: 10,
+    strategies: {A:0.5, B:0, C:0, D:0.3, E:0},
+    unique: 'ビーム駆動非熱 + ミラー端損失',
+    problem: '「非熱核融合」でプラズマ全体の加熱を避ける発想は独自。しかしビームイオンはプラズマ中で電子にエネルギーを失う（電子阻止能）。ビーム減速 vs 核反応の競争はバルクのτ_eq vs τ_burnと本質的に同じ。P_ie問題を回避しているのではなく形を変えている可能性がある。温度・密度・閉じ込め時間の定量データが未公開。',
+    detail: '方式: FRC + タンデムミラーのハイブリッド\n日大でFRC衝突合体を実証\n筑波大GAMMA 10（世界最大タンデムミラー）の知見を活用\n技術ページは原理説明が丁寧だが定量データなし\n出典: linea-innovations.com/en/technology/'
+  },
+  {
+    name: '4サイクル（本案）',
+    color: '#ff0',
+    method: 'eビーム + Zピンチ 4フェーズパルス',
+    electron: '非マクスウェル分布① + 電子排出③ + αチャネリング④',
+    temp: null, tempNeed: null,
+    gap: '未確定',
+    qDist: '未確定',
+    verified: '🔴 思考実験のみ',
+    verdict: '抜け道②を計算で喪失。αチャネリング依存はTAEと同じ。',
+    verdictColor: '#ff0',
+    progress: 5,
+    strategies: {A:0.3, B:0, C:0, D:0, E:0.3},
+    unique: '非マクスウェル分布 + 超短パルス（②は否定済）',
+    problem: '抜け道②（超短パルスTe抑制）がτ_eq/τ_burn=0.0038の計算で否定された。残る抜け道①（非マクスウェル分布）はRider vs Rostokerの論争中。③（電子排出）は10-20%が限界。結局αチャネリング④に依存しており、TAEと同じボトルネック。実験は一切なし。',
+    detail: '思考実験プロジェクト\n抜け道②を計算で否定（2026-04-05）\nτ_eq/τ_burn = 0.0038（密度非依存）\n物理的根拠の一つを喪失'
+  },
+];
+
+// Project cards
+const cardsDiv = document.getElementById('projectCards');
+projects.forEach((p, i) => {
+  const d = document.createElement('div');
+  d.className = 'pcard';
+  d.innerHTML = `
+    <div class="pname" style="color:${p.color}">${p.name}</div>
+    <div class="pmethod">${p.method}</div>
+    <div class="pmethod" style="margin-top:4px">${p.verified}</div>
+    <div class="pverdict" style="background:${p.color}22;color:${p.color}">${p.gap}</div>
+  `;
+  d.onclick = () => selectProject(i);
+  cardsDiv.appendChild(d);
+});
+
+function selectProject(idx) {
+  document.querySelectorAll('.pcard').forEach((c,i) => c.classList.toggle('active', i===idx));
+  const p = projects[idx];
+  document.getElementById('dTitle').textContent = p.name;
+  document.getElementById('dTitle').style.color = p.color;
+  document.getElementById('dInfo').innerHTML = `
+    <b>方式:</b> ${p.method}<br>
+    <b>電子対策:</b> ${p.electron}<br>
+    <b>Q>1距離:</b> ${p.qDist}<br>
+    <b>検証状況:</b> ${p.verified}<br><br>
+    <b>詳細:</b><br>${p.detail.replace(/\n/g,'<br>')}
+  `;
+  document.getElementById('dProblem').style.display = 'block';
+  document.getElementById('dProblem').innerHTML = `<b>正直な評価:</b> ${p.problem}`;
+}
+
+// Progress chart
+const pc = document.getElementById('progressCanvas');
+const pctx = pc.getContext('2d');
+
+function drawProgress() {
+  pctx.clearRect(0,0,pc.width,pc.height);
+  const W=pc.width, H=pc.height;
+
+  pctx.fillStyle='#888';pctx.font='bold 12px sans-serif';pctx.textAlign='center';
+  pctx.fillText('p-B11実現への進捗（正直な評価）',W/2,18);
+
+  const barH=32, startY=40, startX=180, maxW=W-220;
+
+  projects.forEach((p,i) => {
+    const y = startY + i*(barH+12);
+    const bw = (p.progress/100)*maxW;
+
+    // Label
+    pctx.fillStyle=p.color;pctx.font='bold 12px sans-serif';pctx.textAlign='right';
+    pctx.fillText(p.name, startX-10, y+barH/2+4);
+
+    // Bar bg
+    pctx.fillStyle='#1a1a3a';pctx.fillRect(startX,y,maxW,barH);
+
+    // Bar fill
+    pctx.fillStyle=p.color+'66';pctx.fillRect(startX,y,bw,barH);
+    pctx.strokeStyle=p.color;pctx.lineWidth=1.5;pctx.strokeRect(startX,y,bw,barH);
+
+    // Progress %
+    pctx.fillStyle='#fff';pctx.font='bold 11px sans-serif';pctx.textAlign='left';
+    pctx.fillText(p.progress+'%', startX+bw+6, y+barH/2+4);
+
+    // Gap annotation
+    pctx.fillStyle='#888';pctx.font='10px sans-serif';
+    pctx.fillText(p.gap, startX+bw+40, y+barH/2+4);
+  });
+
+  // Scale markers
+  pctx.fillStyle='#555';pctx.font='9px sans-serif';pctx.textAlign='center';
+  for(let pct=0;pct<=100;pct+=25){
+    const x = startX + (pct/100)*maxW;
+    pctx.fillRect(x,startY-5,1,H-startY-10);
+    pctx.fillText(pct+'%',x,H-5);
+  }
+}
+
+// Matrix chart
+const mc = document.getElementById('matrixCanvas');
+const mctx = mc.getContext('2d');
+
+function drawMatrix() {
+  mctx.clearRect(0,0,mc.width,mc.height);
+  const W=mc.width, H=mc.height;
+
+  const approaches = [
+    {id:'A',label:'A.空間的にどかす',result:'❌'},
+    {id:'B',label:'B.時間的にどかす',result:'❌'},
+    {id:'C',label:'C.原子核に吸収',result:'❌'},
+    {id:'D',label:'D.エネルギー回収',result:'🟡'},
+    {id:'E',label:'E.αチャネリング',result:'🔴'},
+  ];
+
+  const cellW=120, cellH=40;
+  const startX=170, startY=50;
+
+  // Column headers (projects)
+  projects.forEach((p,i) => {
+    const x = startX + i*cellW + cellW/2;
+    mctx.fillStyle=p.color;mctx.font='bold 10px sans-serif';mctx.textAlign='center';
+    // Split name for shorter display
+    const short = p.name.split(' ')[0].substring(0,8);
+    mctx.fillText(short,x,20);
+  });
+
+  // Row headers and cells
+  approaches.forEach((a,j) => {
+    const y = startY + j*cellH;
+
+    // Row label
+    mctx.fillStyle='#aaa';mctx.font='11px sans-serif';mctx.textAlign='right';
+    mctx.fillText(a.label, startX-8, y+cellH/2+4);
+
+    // Status background for row
+    const rowColor = a.result==='❌'?'#f4411':'🟡'?'#fa011':'#48f11';
+
+    // Cells
+    projects.forEach((p,i) => {
+      const x = startX + i*cellW;
+      const val = p.strategies[a.id];
+
+      // Cell background
+      let bg, label;
+      if(val >= 0.8){ bg='#4f4'; label='○'; }
+      else if(val >= 0.2){ bg='#fa0'; label='△'; }
+      else { bg='#444'; label='—'; }
+
+      mctx.fillStyle=bg+'33';
+      mctx.fillRect(x+2, y+2, cellW-4, cellH-4);
+      mctx.strokeStyle=bg+'66';mctx.lineWidth=1;
+      mctx.strokeRect(x+2, y+2, cellW-4, cellH-4);
+
+      mctx.fillStyle=bg;mctx.font='16px sans-serif';mctx.textAlign='center';
+      mctx.fillText(label, x+cellW/2, y+cellH/2+6);
+    });
+
+    // Result column
+    const rx = startX + projects.length*cellW + 10;
+    mctx.fillStyle = a.result==='❌'?'#f44':a.result==='🟡'?'#fa0':'#48f';
+    mctx.font='bold 11px sans-serif';mctx.textAlign='left';
+    mctx.fillText(a.result+' '+(['壊滅','壊滅','壊滅','効率不足','未実証'][j]), rx, y+cellH/2+4);
+  });
+
+  // Legend
+  mctx.fillStyle='#888';mctx.font='10px sans-serif';mctx.textAlign='left';
+  mctx.fillText('○=採用 △=部分的/将来 —=なし',startX, H-10);
+}
+
+// Wall chart
+const wc = document.getElementById('wallCanvas');
+const wctx = wc.getContext('2d');
+
+function drawWall() {
+  wctx.clearRect(0,0,wc.width,wc.height);
+  const W=wc.width, H=wc.height;
+
+  wctx.fillStyle='#f44';wctx.font='bold 13px sans-serif';wctx.textAlign='center';
+  wctx.fillText('全プロジェクト共通の壁: P_ie/P_fus ≈ 74（イオン-電子緩和）',W/2,22);
+
+  const items = [
+    {name:'TAE', answer:'将来αチャネリング', status:'🔴 未実証', color:'#4af'},
+    {name:'HB11', answer:'熱プラズマ回避', status:'🟡 レーザー効率が新ボトルネック', color:'#f84'},
+    {name:'LPP', answer:'GT級量子抑制', status:'❌ 6-7桁不足', color:'#a6f'},
+    {name:'LINEA', answer:'ミラー端損失+非熱', status:'🔴 定量データなし', color:'#4c8'},
+    {name:'Marvel', answer:'（P_ie以前の段階）', status:'🔴 評価不能', color:'#8cf'},
+    {name:'4サイクル', answer:'αチャネリング', status:'🔴 未実証', color:'#ff0'},
+  ];
+
+  const barH=24, startY=40, startX=100, maxW=500;
+  items.forEach((it,i) => {
+    const y = startY+i*(barH+10);
+    wctx.fillStyle=it.color;wctx.font='bold 11px sans-serif';wctx.textAlign='right';
+    wctx.fillText(it.name,startX-8,y+barH/2+4);
+
+    // Answer bar
+    wctx.fillStyle=it.color+'33';wctx.fillRect(startX,y,maxW,barH);
+    wctx.strokeStyle=it.color;wctx.lineWidth=1;wctx.strokeRect(startX,y,maxW,barH);
+
+    wctx.fillStyle='#ddd';wctx.font='11px sans-serif';wctx.textAlign='left';
+    wctx.fillText(it.answer+' → '+it.status,startX+8,y+barH/2+4);
+  });
+
+  // Bottom line
+  wctx.fillStyle='#f44';wctx.font='bold 12px sans-serif';wctx.textAlign='center';
+  wctx.fillText('αチャネリングの実験的検証 = p-B11核融合全体の生死',W/2,H-10);
+}
+
+drawProgress();
+drawMatrix();
+drawWall();
+selectProject(0);
+</script>
+</body>
+</html>

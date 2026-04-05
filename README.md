@@ -92,6 +92,7 @@ pb11-fusion/
 | 電子問題（なぜ電子が邪魔か・7つの対策） | [📄 md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/electron-problem.md) | [▶ html](https://goodrelax.github.io/pb11-fusion/simulations/electron-problem.html) |
 | P_ie問題とαチャネリング（真のボトルネック） | [📄 md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/pie-alpha-channeling.md) | [▶ html](https://goodrelax.github.io/pb11-fusion/simulations/pie-alpha-channeling.html) |
 | P_ieパルス計算（「一瞬のスキ」は存在しない） | [📄 md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/pie-pulse-calculation.md) | [▶ html](https://goodrelax.github.io/pb11-fusion/simulations/pie-pulse-calculation.html) |
+| p-B11プロジェクト別・電子対策比較 | [📄 md](https://github.com/GoodRelax/pb11-fusion/blob/main/yomons/pb11-electron-strategies.md) | [▶ html](https://goodrelax.github.io/pb11-fusion/simulations/pb11-electron-strategies.html) |
 
 **4サイクル方式の分析:**
 
